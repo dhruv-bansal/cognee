@@ -1,0 +1,76 @@
+@startuml
+title Cognee Production Architecture (Multiple Existing Agents)
+
+left to right direction
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor "Agent A\n(Customer Support)" as AgentA
+actor "Agent B\n(Procurement)" as AgentB
+actor "Agent C\n(Internal Coding)" as AgentC
+
+cloud "Agent Runtime Layer" {
+  component "Agent Orchestrator /\nTool Router (ADK/LangGraph/etc.)" as Orchestrator
+}
+
+AgentA --> Orchestrator : User tasks
+AgentB --> Orchestrator : User tasks
+AgentC --> Orchestrator : User tasks
+
+node "Production Cluster (Kubernetes / VM Autoscaling Group)" {
+  component "API Gateway / Ingress" as Ingress
+
+  package "Cognee Service" {
+    component "Cognee API\n(search/add/cognify/memify)" as CogneeAPI
+    queue "Job Queue" as Queue
+    component "Worker Pool\n(ingestion + cognify + memify)" as Workers
+  }
+}
+
+Orchestrator --> Ingress : Tool calls
+Ingress --> CogneeAPI : HTTP API
+
+Orchestrator --> CogneeAPI : memory_search()
+Orchestrator --> CogneeAPI : memory_write()
+Orchestrator --> CogneeAPI : memory_refresh()
+
+database "Relational DB\n(Postgres)" as RelDB
+database "Vector DB\n(PGVector / Qdrant / Weaviate)" as VecDB
+database "Graph DB\n(Neo4j / Kuzu / Neptune)" as GraphDB
+folder "Object Storage\n(S3/GCS/Azure Blob)" as ObjStore
+
+cloud "LLM / Embedding Providers" as ModelProviders
+cloud "Business Data Sources\n(Docs, DB exports, logs,\nconversations, tickets)" as Sources
+cloud "Observability\n(Logs / Metrics / Traces)" as Obs
+
+Sources --> CogneeAPI : add() data
+CogneeAPI --> Queue : enqueue pipeline jobs
+Queue --> Workers : async processing
+
+Workers --> ModelProviders : extraction + summaries + embeddings
+Workers --> RelDB : metadata / dataset state
+Workers --> VecDB : embeddings index
+Workers --> GraphDB : entities + relationships
+Workers --> ObjStore : raw files / processed artifacts
+
+CogneeAPI --> RelDB : auth, datasets, run state
+CogneeAPI --> VecDB : similarity retrieval
+CogneeAPI --> GraphDB : graph traversal
+CogneeAPI --> ModelProviders : completion (when needed)
+
+CogneeAPI --> Obs : telemetry
+Workers --> Obs : pipeline metrics/logs
+Ingress --> Obs : request metrics
+
+Orchestrator <-- CogneeAPI : retrieved context + answers
+Orchestrator --> AgentA : grounded response
+Orchestrator --> AgentB : grounded response
+Orchestrator --> AgentC : grounded response
+
+note bottom of CogneeAPI
+Cognee is the memory service layer.
+Databases are backing stores selected per environment.
+end note
+
+@enduml

@@ -39,13 +39,19 @@ Conclusion:
 
 ## Recommended Architecture
 
-### 1) Agent Roles
+### 1) Agent Roles & Topology
 
-- Domain agents: own bounded context knowledge and local tool policies.
-- Service agent: decomposes requests, delegates to domain agents, composes final result.
-- Optional verifier agent: validates evidence quality, conflict resolution, and action safety.
+- **Domain agents:** own bounded context knowledge and local tool policies.
+- **Service agent:** decomposes requests, delegates to domain agents, composes final result.
+- **Optional verifier agent:** validates evidence quality, conflict resolution, and action safety.
+- **Discovery & Ownership:** Google ADK handles routing and discovery via tags. However, the system needs a logical "Agent Capability/Knowledge Catalog" (likely owned by the Service Agent) that explicitly maps *which* agent owns *what* business process knowledge. ADK routing tags are for network discovery; the Catalog is for semantic delegation.
 
-### 2) Knowledge and Data Flow
+### 2) Knowledge and Data Flow (State vs. Knowledge)
+
+- **Strict Boundary:** The architecture must enforce a hard line between *static domain knowledge* (how to provision, business rules, API constraints) and *live system state* (current DB status, active logs).
+- **Knowledge Layer (e.g., Cognee):** Exclusively stores curated, static business process knowledge and historical learnings. This is updated only when business rules or code logic changes.
+- **State Layer (MCP):** Live operational data must remain purely MCP/API driven. Agents should never cache live state into the long-term knowledge graph.
+- The workflow is: Retrieve static BP knowledge -> Use that knowledge to determine which MCP tools to call -> Fetch live state -> Make decision.
 
 - Curated knowledge (docs, architecture notes, postmortems, runbooks) is ingested into Cognee.
 - High-volume runtime signals stay in observability systems; periodic summaries and derived facts are written into Cognee.
@@ -109,8 +115,8 @@ Conclusion:
 - [x] 1. What is the authority boundary for each domain agent (read-only vs action-capable)?
 Current answer: agents can eventually become action-capable through MCP; for state-changing actions, human-in-the-loop approval will be enforced via Google ADK flows.
 
-- [ ] 2. What is the conflict-resolution rule when two domain agents disagree?
-Current answer: still open; strategy is not finalized yet.
+- [x] 2. What is the conflict-resolution rule when two domain agents disagree?
+Current answer: For V1, complex automated arbitration is deferred. Conflict resolution should fall back to a Human-in-the-Loop (HITL) Verifier or a simple static priority matrix (e.g., the orchestrator always defers to the specific Domain Agent's knowledge first).
 
 - [ ] 3. What confidence threshold triggers human escalation?
 Current answer: still open; best strategy to be defined.

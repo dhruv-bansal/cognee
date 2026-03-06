@@ -1,0 +1,254 @@
+[
+  {
+    "scenario_id": "ts_01_no_cpe_id",
+    "title": "Service stuck in UNPROVISIONED, no device linked",
+    "passed": true,
+    "precision": 1.0,
+    "recall": 0.8,
+    "details": {
+      "expected": [
+        "decision_tree_01_no_resource_v1",
+        "scope_rule_onebb_provisioning_v1",
+        "scope_rule_required_service_id_v1",
+        "state_def_service_unprovisioned_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "retrieved": [
+        "decision_tree_01_no_resource_v1",
+        "scope_rule_onebb_provisioning_v1",
+        "state_def_service_unprovisioned_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "true_positives": [
+        "decision_tree_01_no_resource_v1",
+        "scope_rule_onebb_provisioning_v1",
+        "state_def_service_unprovisioned_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "false_positives": [],
+      "leaked_items": [],
+      "missing": [
+        "scope_rule_required_service_id_v1"
+      ]
+    }
+  },
+  {
+    "scenario_id": "ts_02_device_never_online",
+    "title": "Service UNPROVISIONED, device assigned but never came online",
+    "passed": true,
+    "precision": 0.88,
+    "recall": 1.0,
+    "details": {
+      "expected": [
+        "decision_tree_02_resource_not_online_v1",
+        "evidence_pattern_check_online_event_v1",
+        "state_def_resource_op_unknown_pending_unknown_v1",
+        "state_def_resource_pending_active_assigned_v1",
+        "state_def_service_unprovisioned_v1",
+        "tool_contract_get_resource_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "retrieved": [
+        "decision_tree_02_resource_not_online_v1",
+        "evidence_pattern_check_online_event_v1",
+        "scope_rule_onebb_provisioning_v1",
+        "state_def_resource_op_unknown_pending_unknown_v1",
+        "state_def_resource_pending_active_assigned_v1",
+        "state_def_service_unprovisioned_v1",
+        "tool_contract_get_resource_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "true_positives": [
+        "decision_tree_02_resource_not_online_v1",
+        "evidence_pattern_check_online_event_v1",
+        "state_def_resource_op_unknown_pending_unknown_v1",
+        "state_def_resource_pending_active_assigned_v1",
+        "state_def_service_unprovisioned_v1",
+        "tool_contract_get_resource_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "false_positives": [
+        "scope_rule_onebb_provisioning_v1"
+      ],
+      "leaked_items": [],
+      "missing": []
+    }
+  },
+  {
+    "scenario_id": "ts_03_happy_path",
+    "title": "Everything is fine, provisioned and online",
+    "passed": true,
+    "precision": 0.86,
+    "recall": 1.0,
+    "details": {
+      "expected": [
+        "decision_tree_03_happy_path_v1",
+        "state_def_resource_active_provisioned_v1",
+        "state_def_resource_op_enabled_online_v1",
+        "state_def_service_provisioned_v1",
+        "tool_contract_get_resource_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "retrieved": [
+        "decision_tree_03_happy_path_v1",
+        "scope_rule_onebb_provisioning_v1",
+        "state_def_resource_active_provisioned_v1",
+        "state_def_resource_op_enabled_online_v1",
+        "state_def_service_provisioned_v1",
+        "tool_contract_get_resource_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "true_positives": [
+        "decision_tree_03_happy_path_v1",
+        "state_def_resource_active_provisioned_v1",
+        "state_def_resource_op_enabled_online_v1",
+        "state_def_service_provisioned_v1",
+        "tool_contract_get_resource_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "false_positives": [
+        "scope_rule_onebb_provisioning_v1"
+      ],
+      "leaked_items": [],
+      "missing": []
+    }
+  },
+  {
+    "scenario_id": "ts_04_service_locked",
+    "title": "Service stuck, device online, locked by another process",
+    "passed": true,
+    "precision": 0.89,
+    "recall": 1.0,
+    "details": {
+      "expected": [
+        "decision_tree_07_service_locked_v1",
+        "evidence_pattern_lock_issues_v1",
+        "failure_pattern_stale_lock_v1",
+        "state_def_resource_op_enabled_online_v1",
+        "state_def_service_unprovisioned_v1",
+        "tool_contract_check_provisioning_logs_v1",
+        "tool_contract_get_resource_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "retrieved": [
+        "decision_tree_07_service_locked_v1",
+        "evidence_pattern_lock_issues_v1",
+        "failure_pattern_stale_lock_v1",
+        "scope_rule_onebb_provisioning_v1",
+        "state_def_resource_op_enabled_online_v1",
+        "state_def_service_unprovisioned_v1",
+        "tool_contract_check_provisioning_logs_v1",
+        "tool_contract_get_resource_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "true_positives": [
+        "decision_tree_07_service_locked_v1",
+        "evidence_pattern_lock_issues_v1",
+        "failure_pattern_stale_lock_v1",
+        "state_def_resource_op_enabled_online_v1",
+        "state_def_service_unprovisioned_v1",
+        "tool_contract_check_provisioning_logs_v1",
+        "tool_contract_get_resource_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "false_positives": [
+        "scope_rule_onebb_provisioning_v1"
+      ],
+      "leaked_items": [],
+      "missing": []
+    }
+  },
+  {
+    "scenario_id": "ts_05_pppoe_stuck",
+    "title": "ACS succeeded but PPPOE_RESET never arrived",
+    "passed": true,
+    "precision": 0.89,
+    "recall": 1.0,
+    "details": {
+      "expected": [
+        "decision_tree_08_no_pppoe_reset_v1",
+        "evidence_pattern_pppoe_not_received_v1",
+        "failure_pattern_pppoe_missing_v1",
+        "state_def_resource_op_pending_pppoe_restart_v1",
+        "state_def_service_unprovisioned_v1",
+        "tool_contract_check_provisioning_logs_v1",
+        "tool_contract_get_resource_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "retrieved": [
+        "decision_tree_08_no_pppoe_reset_v1",
+        "evidence_pattern_pppoe_not_received_v1",
+        "failure_pattern_pppoe_missing_v1",
+        "scope_rule_onebb_provisioning_v1",
+        "state_def_resource_op_pending_pppoe_restart_v1",
+        "state_def_service_unprovisioned_v1",
+        "tool_contract_check_provisioning_logs_v1",
+        "tool_contract_get_resource_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "true_positives": [
+        "decision_tree_08_no_pppoe_reset_v1",
+        "evidence_pattern_pppoe_not_received_v1",
+        "failure_pattern_pppoe_missing_v1",
+        "state_def_resource_op_pending_pppoe_restart_v1",
+        "state_def_service_unprovisioned_v1",
+        "tool_contract_check_provisioning_logs_v1",
+        "tool_contract_get_resource_v1",
+        "tool_contract_get_service_details_v1"
+      ],
+      "false_positives": [
+        "scope_rule_onebb_provisioning_v1"
+      ],
+      "leaked_items": [],
+      "missing": []
+    }
+  },
+  {
+    "scenario_id": "ts_06_out_of_scope",
+    "title": "User asks about WiFi performance, not provisioning",
+    "passed": true,
+    "precision": 0.5,
+    "recall": 1.0,
+    "details": {
+      "expected": [
+        "scope_rule_onebb_provisioning_v1"
+      ],
+      "retrieved": [
+        "scope_rule_onebb_provisioning_v1",
+        "scope_rule_required_service_id_v1"
+      ],
+      "true_positives": [
+        "scope_rule_onebb_provisioning_v1"
+      ],
+      "false_positives": [
+        "scope_rule_required_service_id_v1"
+      ],
+      "leaked_items": [],
+      "missing": []
+    }
+  },
+  {
+    "scenario_id": "ts_07_no_service_id",
+    "title": "In-scope question but no service ID provided",
+    "passed": true,
+    "precision": 1.0,
+    "recall": 1.0,
+    "details": {
+      "expected": [
+        "scope_rule_onebb_provisioning_v1",
+        "scope_rule_required_service_id_v1"
+      ],
+      "retrieved": [
+        "scope_rule_onebb_provisioning_v1",
+        "scope_rule_required_service_id_v1"
+      ],
+      "true_positives": [
+        "scope_rule_onebb_provisioning_v1",
+        "scope_rule_required_service_id_v1"
+      ],
+      "false_positives": [],
+      "leaked_items": [],
+      "missing": []
+    }
+  }
+]

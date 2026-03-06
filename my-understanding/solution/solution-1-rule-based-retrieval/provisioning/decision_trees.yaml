@@ -1,0 +1,264 @@
+---
+items:
+
+  - knowledge_id: decision_tree_master_diagnostic_flow_v1
+    domain: provisioning
+    knowledge_type: decision_tree
+    title: "Master Diagnostic Flow: Key Diagnostic Questions"
+    statement: >
+      Entry point for all provisioning diagnostics. Follow this sequence:
+
+      1. Is cpeId present?
+         - NO -> Scenario #1 (No Resource)
+         - YES -> Continue
+
+      2. What is managementSystem?
+         - LEGACY (HDM/RINO/SNMP) -> Service should be PROVISIONED (sync flow)
+         - NONDTROUTER -> Service should be PROVISIONED (immediate activation)
+         - UNKNOWN -> Service is UNPROVISIONED, waiting for device registration
+         - RDK -> Continue to step 3
+
+      3. What is serviceState?
+         - PROVISIONED -> Check if home created. Yes=Happy Path(#3), No=Home Not Created(#10)
+         - PROVISIONING_FAILED -> Check TransactionJob in MongoDB. Exists=#6(ACS Failed), Not exists=#12(Op Mapping)
+         - UNPROVISIONED -> Continue to step 4
+
+      4. What is resourceOperationalState?
+         - UNKNOWN -> Check operationalSubState.
+           PENDING_PPPOE_RESTART=#9(Awaiting PPPOE_RESET).
+           PENDING_UNKNOWN -> Was device ever online? Yes=#5(Offline During), No=#2(Never Online)
+         - ENABLED/ONLINE -> Continue to step 5
+
+      5. Is serviceLockReferenceId present?
+         - YES -> Scenario #7 (Service Locked)
+         - NO -> Check TransactionJob status and logs.
+           PARTIAL_SUCCESS=#13, ACS errors=#6, Exceptions/NPE=#8
+    preconditions:
+      - "serviceId is available"
+      - "service details have been fetched"
+    expected_outcome: "Agent identifies the correct diagnostic scenario from #1-#13."
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Quick Reference State Combinations > Key Diagnostic Questions Flow"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 1.0
+    status: active
+    tags: [decision_tree, master, diagnostic, flow, entry_point]
+    related_to:
+      - target: scope_rule_required_service_id_v1
+        edge_type: DEPENDS_ON
+      - target: tool_contract_get_service_details_v1
+        edge_type: REQUIRES_TOOL
+      - target: tool_contract_get_resource_v1
+        edge_type: REQUIRES_TOOL
+      - target: decision_tree_01_no_resource_v1
+        edge_type: ROUTES_TO
+      - target: decision_tree_02_resource_not_online_v1
+        edge_type: ROUTES_TO
+      - target: decision_tree_03_happy_path_v1
+        edge_type: ROUTES_TO
+      - target: decision_tree_08_no_pppoe_reset_v1
+        edge_type: ROUTES_TO
+      - target: decision_tree_07_service_locked_v1
+        edge_type: ROUTES_TO
+
+  - knowledge_id: decision_tree_01_no_resource_v1
+    domain: provisioning
+    knowledge_type: decision_tree
+    title: "Decision Tree 1: Service with No Resource"
+    statement: >
+      Pre-provisioning was done without a supporting resource. Natco created the
+      service beforehand; customer will be linked later. State indicators: cpeId is
+      null or missing, managementSystem is UNKNOWN, serviceState is UNPROVISIONED.
+      Root cause: supportingResources block was NOT provided in the PUT AC API request.
+      Resolution: Link service with resource using PATCH AC API or PATCH RI API.
+      Once linked and device comes online, provisioning will trigger automatically.
+    preconditions:
+      - "cpeId is null or missing"
+      - "managementSystem == UNKNOWN"
+      - "serviceState == UNPROVISIONED"
+    expected_outcome: "Link service with resource via PATCH AC API or PATCH RI API."
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Diagnostic Decision Trees > Decision Tree 1"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 0.95
+    status: active
+    tags: [decision_tree, no_resource, unknown, unprovisioned]
+    related_to:
+      - target: state_def_service_unprovisioned_v1
+        edge_type: REQUIRES_STATE
+      - target: tool_contract_get_service_details_v1
+        edge_type: REQUIRES_TOOL
+
+  - knowledge_id: decision_tree_02_resource_not_online_v1
+    domain: provisioning
+    knowledge_type: decision_tree
+    title: "Decision Tree 2: Service with Resource Not Online (RDK)"
+    statement: >
+      Service has a resource assigned but device never came online (boot event
+      not received). State indicators: cpeId present, managementSystem RDK,
+      serviceState UNPROVISIONED, resourceState PENDING_ACTIVE/ASSIGNED,
+      operationalState UNKNOWN, operationalSubState PENDING_UNKNOWN.
+      Root cause: boot/online event was NOT received from CPE. Post-provisioning
+      was never triggered (requires device online).
+      Resolution: Wait for device to come online. Investigate device
+      connectivity/power issues. Check device is configured to connect to RDK backend.
+    preconditions:
+      - "cpeId is present"
+      - "managementSystem == RDK"
+      - "serviceState == UNPROVISIONED"
+      - "resourceState == PENDING_ACTIVE"
+      - "resourceOperationalState == UNKNOWN"
+      - "resourceOperationalSubState == PENDING_UNKNOWN"
+      - "device was NEVER online (no online event in logs)"
+    expected_outcome: "Investigate device connectivity. Wait for device to come online."
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Diagnostic Decision Trees > Decision Tree 2"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 0.95
+    status: active
+    tags: [decision_tree, resource_not_online, rdk, never_online]
+    related_to:
+      - target: state_def_service_unprovisioned_v1
+        edge_type: REQUIRES_STATE
+      - target: state_def_resource_pending_active_assigned_v1
+        edge_type: REQUIRES_STATE
+      - target: state_def_resource_op_unknown_pending_unknown_v1
+        edge_type: REQUIRES_STATE
+      - target: tool_contract_get_service_details_v1
+        edge_type: REQUIRES_TOOL
+      - target: tool_contract_get_resource_v1
+        edge_type: REQUIRES_TOOL
+      - target: evidence_pattern_check_online_event_v1
+        edge_type: CONFIRMED_BY
+
+  - knowledge_id: decision_tree_03_happy_path_v1
+    domain: provisioning
+    knowledge_type: decision_tree
+    title: "Decision Tree 3: Happy Path - Service with Online Resource"
+    statement: >
+      Everything worked correctly. State indicators: cpeId present,
+      managementSystem RDK, serviceState PROVISIONED, serviceStatus ENABLED,
+      resourceState ACTIVE, resourceSubState PROVISIONED, operationalState ENABLED,
+      operationalSubState ONLINE, serviceLockReferenceId null (no lock).
+      All provisioning parameters should have status APPLIED.
+    preconditions:
+      - "cpeId is present"
+      - "managementSystem == RDK"
+      - "serviceState == PROVISIONED"
+      - "resourceState == ACTIVE"
+      - "resourceOperationalState == ENABLED"
+      - "resourceOperationalSubState == ONLINE"
+      - "serviceLockReferenceId is null"
+    expected_outcome: "No issue. This is the expected successful state."
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Diagnostic Decision Trees > Decision Tree 3"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 1.0
+    status: active
+    tags: [decision_tree, happy_path, provisioned, online]
+    related_to:
+      - target: state_def_service_provisioned_v1
+        edge_type: REQUIRES_STATE
+      - target: state_def_resource_active_provisioned_v1
+        edge_type: REQUIRES_STATE
+      - target: state_def_resource_op_enabled_online_v1
+        edge_type: REQUIRES_STATE
+
+  - knowledge_id: decision_tree_07_service_locked_v1
+    domain: provisioning
+    knowledge_type: decision_tree
+    title: "Decision Tree 7: Provisioning Never Occurred - Service Locked"
+    statement: >
+      Device is online but provisioning never started because service was locked.
+      State indicators: cpeId present, managementSystem RDK, serviceState
+      UNPROVISIONED, operationalState ENABLED, operationalSubState ONLINE,
+      serviceLockReferenceId PRESENT (not null).
+      Root cause: service was already locked by another process. Common cause is
+      repeated provisioning requests where first request hasn't completed.
+      Lock types that block: DELAYED_RETRY_PROCESSING,
+      DEPROVISIONING_DELAYED_RETRY_PROCESSING, DISASSOCIATE_REQUEST_PROCESSING.
+      Resolution: Wait for existing lock to be released (typical: seconds to minutes).
+      If lock is stale (stuck), manually release it.
+    preconditions:
+      - "cpeId is present"
+      - "managementSystem == RDK"
+      - "serviceState == UNPROVISIONED"
+      - "resourceOperationalState == ENABLED"
+      - "resourceOperationalSubState == ONLINE"
+      - "serviceLockReferenceId is NOT null"
+    expected_outcome: "Wait for lock release or manually release stale lock."
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Diagnostic Decision Trees > Decision Tree 7"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 0.95
+    status: active
+    tags: [decision_tree, service_locked, lock, blocked]
+    related_to:
+      - target: state_def_service_unprovisioned_v1
+        edge_type: REQUIRES_STATE
+      - target: state_def_resource_op_enabled_online_v1
+        edge_type: REQUIRES_STATE
+      - target: tool_contract_get_service_details_v1
+        edge_type: REQUIRES_TOOL
+      - target: evidence_pattern_lock_issues_v1
+        edge_type: CONFIRMED_BY
+      - target: failure_pattern_stale_lock_v1
+        edge_type: INSTANCE_OF
+
+  - knowledge_id: decision_tree_08_no_pppoe_reset_v1
+    domain: provisioning
+    knowledge_type: decision_tree
+    title: "Decision Tree 8: Params Applied (200 OK), No PPPOE_RESET Event"
+    statement: >
+      ACS successfully applied parameters to CPE (200 OK received), but
+      PPPOE_RESET event never arrived. Service remains UNPROVISIONED and
+      LOCKED. Resource operationalSubState is PENDING_PPPOE_RESTART.
+      PPPOE_RESET should arrive approximately 5 seconds after 200 OK from CPE.
+      Root cause: parameters were applied but CPE did not send PPPOE_RESET_EVENT
+      (or event was lost). Without this event, post-provisioning actions cannot proceed.
+      Resolution: Investigate device-side PPPoE restart behavior. May need manual
+      reprovisioning. Check event infrastructure (MQ) for issues.
+    preconditions:
+      - "cpeId is present"
+      - "managementSystem == RDK"
+      - "serviceState == UNPROVISIONED"
+      - "resourceOperationalState == UNKNOWN"
+      - "resourceOperationalSubState == PENDING_PPPOE_RESTART"
+      - "serviceLockReferenceId is present (service is LOCKED)"
+      - "ACS response was 200 OK"
+    expected_outcome: "Investigate device PPPoE restart. Check MQ. May need manual reprovisioning."
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Diagnostic Decision Trees > Decision Tree 8"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 0.95
+    status: active
+    tags: [decision_tree, pppoe, reset, stuck, locked, 200ok]
+    related_to:
+      - target: state_def_service_unprovisioned_v1
+        edge_type: REQUIRES_STATE
+      - target: state_def_resource_op_pending_pppoe_restart_v1
+        edge_type: REQUIRES_STATE
+      - target: tool_contract_check_provisioning_logs_v1
+        edge_type: REQUIRES_TOOL
+      - target: evidence_pattern_pppoe_not_received_v1
+        edge_type: CONFIRMED_BY
+      - target: failure_pattern_pppoe_missing_v1
+        edge_type: INSTANCE_OF

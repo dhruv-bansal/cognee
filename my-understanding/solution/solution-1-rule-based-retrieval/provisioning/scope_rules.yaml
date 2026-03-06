@@ -1,0 +1,73 @@
+---
+items:
+
+  - knowledge_id: scope_rule_onebb_provisioning_v1
+    domain: provisioning
+    knowledge_type: scope_rule
+    title: "OneBroadband Provisioning Scope Definition"
+    statement: >
+      This agent ONLY handles OneBroadband provisioning diagnostics including:
+      provisioning state, locks, CPEProvisioningEvent, ACS/Job Manager execution,
+      PPPOE_RESET_EVENT, resource inventory/linking, online/offline operational state,
+      and operation mapping issues.
+    preconditions: []
+    expected_outcome: "Requests about OneBroadband provisioning are accepted for analysis."
+    out_of_scope_examples:
+      - "general networking/Wi-Fi performance unrelated to provisioning"
+      - "billing"
+      - "account changes"
+      - "non-OneBB services"
+      - "unrelated app issues"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Domain & Input Gating (MANDATORY) > 1"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 1.0
+    status: active
+    tags: [scope, gating, provisioning, onebb]
+
+  - knowledge_id: scope_rule_required_service_id_v1
+    domain: provisioning
+    knowledge_type: scope_rule
+    title: "Required Identifier: serviceId"
+    statement: >
+      If the request is in-scope but the user did not provide a serviceId
+      (or an unambiguous equivalent identifier that includes the service ID),
+      the agent must ask for it before proceeding. No analysis is possible
+      without a serviceId.
+    preconditions:
+      - "request is in-scope for provisioning"
+    expected_outcome: "Agent requests serviceId before running any diagnostic."
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Domain & Input Gating (MANDATORY) > 2"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 1.0
+    status: active
+    tags: [scope, gating, identifier, service_id]
+
+  - knowledge_id: scope_rule_cannot_determine_v1
+    domain: provisioning
+    knowledge_type: scope_rule
+    title: "Cannot Determine Scope Response"
+    statement: >
+      If the agent cannot confidently determine whether the query is about
+      OneBroadband provisioning, it must respond that it could not route
+      the query because it could not identify which agent this query
+      should belong to.
+    preconditions:
+      - "scope classification is ambiguous"
+    expected_outcome: "Agent communicates routing uncertainty instead of guessing."
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Domain & Input Gating (MANDATORY) > 3"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 1.0
+    status: active
+    tags: [scope, gating, ambiguous, routing]

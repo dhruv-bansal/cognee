@@ -1,0 +1,191 @@
+@startuml Agent-Driven Knowledge Retrieval Flow
+
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 12
+skinparam shadowing false
+
+skinparam activity {
+  BackgroundColor #F1F3F4
+  BorderColor #9AA0A6
+}
+
+skinparam note {
+  BackgroundColor #FFFDE7
+  BorderColor #F9AB00
+  FontSize 10
+}
+
+title Agent-Driven Knowledge Retrieval Flow\nThe agent reasons in a loop: think, search knowledge or call tools, observe, repeat
+
+|#E8F0FE| Agent (Think) |
+|#F3E8FD| Knowledge Store (search_knowledge tool) |
+|#FEF3E0| MCP Tools (live state) |
+
+|Agent (Think)|
+start
+:Receives user problem:
+"Service 12345 is stuck in UNPROVISIONED";
+
+:Thinks: "This is provisioning.
+I don't know what tools are available
+for provisioning diagnostics.
+Let me check the knowledge store.";
+
+|Knowledge Store (search_knowledge tool)|
+#F3E8FD:search_knowledge(
+  domain="provisioning",
+  type="tool_contract"
+);
+
+|Agent (Think)|
+:Observes result: 4 tools available
+- get_service_details (needs service_id)
+- get_resource (needs cpe_id)
+- search_logs (needs service_id)
+- query_transaction_job (needs transaction_id)
+
+Thinks: "User mentioned UNPROVISIONED.
+I don't know what that state means exactly.
+Let me look it up before calling any tools.";
+
+|Knowledge Store (search_knowledge tool)|
+#F3E8FD:search_knowledge(
+  domain="provisioning",
+  query="UNPROVISIONED service state meaning"
+);
+
+|Agent (Think)|
+:Observes result:
+UNPROVISIONED = waiting for post-provisioning,
+most common for failed/incomplete provisioning,
+NOT the same as INACTIVE.
+
+Thinks: "OK. I have the service_id from the user.
+Let me get the actual service state first.";
+
+|MCP Tools (live state)|
+#FEF3E0:get_service_details(
+  service_id="12345"
+);
+
+|Agent (Think)|
+:Observes result:
+serviceState = UNPROVISIONED
+cpeId = "abc123"
+managementSystem = RDK
+serviceLockReferenceId = "lock-55443"
+
+Thinks: "Service is locked and has a cpeId.
+Let me check the resource state too.";
+
+|MCP Tools (live state)|
+#FEF3E0:get_resource(
+  cpe_id="abc123"
+);
+
+|Agent (Think)|
+:Observes result:
+resourceState = PENDING_ACTIVE
+operationalState = UNKNOWN
+operationalSubState = PENDING_PPPOE_RESTART
+
+Thinks: "I see PENDING_PPPOE_RESTART.
+I don't know what that means.
+Let me search the knowledge store.";
+
+|Knowledge Store (search_knowledge tool)|
+#F3E8FD:search_knowledge(
+  domain="provisioning",
+  query="PENDING_PPPOE_RESTART meaning"
+);
+
+|Agent (Think)|
+:Observes result:
+PPPoE params were applied, system waiting for
+device to restart PPPoE connection.
+PPPOE_RESET_EVENT expected ~5s after 200 OK.
+
+Thinks: "So it's waiting for an event that
+should come in 5 seconds but hasn't.
+What is required for UNPROVISIONED
+to transition to PROVISIONED?";
+
+|Knowledge Store (search_knowledge tool)|
+#F3E8FD:search_knowledge(
+  domain="provisioning",
+  query="transition UNPROVISIONED to PROVISIONED"
+);
+
+|Agent (Think)|
+:Observes result:
+Requires: device online + ACS success
++ PPPOE_RESET_EVENT received.
+
+Thinks: "The PPPOE_RESET_EVENT is the
+missing piece. The service is locked
+because it's waiting for this event.
+How long should a lock last?
+Is this one stale?";
+
+|Knowledge Store (search_knowledge tool)|
+#F3E8FD:search_knowledge(
+  domain="provisioning",
+  query="service lock stale duration"
+);
+
+|Agent (Think)|
+:Observes result:
+Lock > 15-30 min with no active
+transaction = likely stale.
+
+Thinks: "I now have enough information
+to form a diagnosis. Let me also
+confirm by checking the logs for
+the PPPOE_RESET event.";
+
+|MCP Tools (live state)|
+#FEF3E0:search_logs(
+  service_id="12345",
+  pattern="PPPOE_RESET"
+);
+
+|Agent (Think)|
+:Observes result:
+ACS returned 200 OK at 14:02:10.
+No PPPOE_RESET_EVENT found after that.
+
+Thinks: "Confirmed. ACS succeeded but
+PPPOE_RESET never arrived. I have
+all the evidence I need.";
+
+#E6F4EA:== DIAGNOSIS (with citations) ==
+
+1. Service 12345 is UNPROVISIONED and locked.
+2. Device params were applied (ACS 200 OK at 14:02:10).
+3. PPPOE_RESET_EVENT never arrived (expected ~5s after).
+4. Per transition rules: cannot reach PROVISIONED
+   without this event.
+5. Lock held since 14:02:10 (> 30 min) = likely stale.
+
+Recommendation: Check device PPPoE restart behavior.
+Check message queue for lost events.
+May need manual reprovisioning.
+Release stale lock if confirmed inactive.;
+
+stop
+
+legend bottom
+  |= |= What this diagram shows |
+  | | The agent drives a think-act-observe LOOP |
+  | | It searches knowledge store and calls MCP tools interleaved |
+  | | Each search is targeted: one specific question at a time |
+  | | The agent decides what to search based on what it just learned |
+  | | It stops searching when it has enough to reason |
+  |= Color |= Component |
+  |<#E8F0FE>  | Agent reasoning (think step) |
+  |<#F3E8FD>  | Knowledge Store queries (search_knowledge tool) |
+  |<#FEF3E0>  | MCP tool calls (live system state) |
+  |<#E6F4EA>  | Final diagnosis |
+endlegend
+
+@enduml

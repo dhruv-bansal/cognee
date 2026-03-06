@@ -1,0 +1,149 @@
+---
+items:
+
+  # --- Evidence Patterns ---
+
+  - knowledge_id: evidence_pattern_check_online_event_v1
+    domain: provisioning
+    knowledge_type: evidence_pattern
+    title: "Evidence: Was Device Ever Online?"
+    statement: >
+      To determine if a device was ever online, check event logs for an online
+      event (websocket connection established). This differentiates:
+      - Device NEVER online (Scenario #2): no online event in history
+      - Device went OFFLINE during provisioning (Scenario #5): online event exists
+        but followed by offline event.
+      Look for operationalState transitions in the logs.
+    preconditions:
+      - "device operationalState is UNKNOWN"
+    expected_outcome: "Confirms whether device was ever online to differentiate DT#2 from DT#5."
+    confirms: [decision_tree_02_resource_not_online_v1]
+    rejects: [decision_tree_05_offline_during_v1]
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Diagnostic Decision Trees > Diagnostic Differentiation Guide"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 0.9
+    status: active
+    tags: [evidence, online_event, differentiation]
+
+  - knowledge_id: evidence_pattern_pppoe_not_received_v1
+    domain: provisioning
+    knowledge_type: evidence_pattern
+    title: "Evidence: PPPOE_RESET_EVENT Not Received"
+    statement: >
+      After ACS returns 200 OK, PPPOE_RESET_EVENT should arrive approximately
+      5 seconds later. To confirm this evidence pattern: verify 200 OK was received
+      from CPE in logs, then check event logs for PPPOE_RESET_EVENT. If absent,
+      check device connectivity after parameter application. Verify PPPoE connection
+      restart actually occurred on device. Check if event was published but not consumed.
+    preconditions:
+      - "ACS response was 200 OK"
+      - "operationalSubState == PENDING_PPPOE_RESTART"
+    expected_outcome: "Confirms DT#8: params applied but PPPoE reset never completed."
+    confirms: [decision_tree_08_no_pppoe_reset_v1]
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Diagnostic Decision Trees > Decision Tree 8"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 0.9
+    status: active
+    tags: [evidence, pppoe, reset, missing, event]
+
+  - knowledge_id: evidence_pattern_lock_issues_v1
+    domain: provisioning
+    knowledge_type: evidence_pattern
+    title: "Evidence: Service Lock Blocking Provisioning"
+    statement: >
+      Check serviceLockReferenceId field in service details. If present (not null),
+      service is locked. Then check logs for lock-related messages:
+      'Service is locked', 'Lock acquisition failed',
+      'DELAYED_RETRY_PROCESSING lock present', 'Service lock reference ID present'.
+      Identify what process holds the lock by checking the serviceLockReferenceId.
+      A lock held for more than 15-30 minutes with no active transaction is likely stale.
+    preconditions:
+      - "serviceLockReferenceId is not null"
+    expected_outcome: "Confirms DT#7: service locked, provisioning blocked."
+    confirms: [decision_tree_07_service_locked_v1]
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Service Lock Mechanisms + Log Analysis Guide"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 0.95
+    status: active
+    tags: [evidence, lock, blocked, stale]
+
+  # --- Failure Patterns ---
+
+  - knowledge_id: failure_pattern_stale_lock_v1
+    domain: provisioning
+    knowledge_type: failure_pattern
+    title: "Failure Pattern: Stale Service Lock"
+    statement: >
+      Service remains locked for an extended period (more than 15-30 minutes).
+      No active transaction found in logs for the lock reference ID.
+      Provisioning is stuck in UNPROVISIONED state.
+      Resolution: Verify no active operations for the serviceLockReferenceId.
+      Manually release lock via support API/tool. CAUTION: releasing a valid
+      lock can cause race conditions. Always verify transaction inactivity first.
+    preconditions:
+      - "serviceLockReferenceId is present"
+      - "lock held for > 15-30 minutes"
+      - "no active transaction for lock reference"
+    expected_outcome: "Manually release stale lock after confirming no active operations."
+    log_signatures:
+      - "Service is locked"
+      - "Lock acquisition failed"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Service Lock Mechanisms > Stale Lock Diagnosis"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 0.9
+    status: active
+    tags: [failure, lock, stale, stuck, manual_intervention]
+    related_to:
+      - target: decision_tree_07_service_locked_v1
+        edge_type: DIAGNOSED_BY
+      - target: evidence_pattern_lock_issues_v1
+        edge_type: CONFIRMED_BY
+
+  - knowledge_id: failure_pattern_pppoe_missing_v1
+    domain: provisioning
+    knowledge_type: failure_pattern
+    title: "Failure Pattern: PPPOE_RESET Event Missing After Successful ACS"
+    statement: >
+      ACS returned 200 OK (parameters applied to device) but PPPOE_RESET_EVENT
+      never arrived. Service remains locked and UNPROVISIONED. This can be caused
+      by: device-side PPPoE restart failure, event lost in message queue, device
+      disconnected immediately after parameter application, or event published
+      but not consumed.
+    preconditions:
+      - "ACS returned 200 OK"
+      - "PPPOE_RESET_EVENT not found in event logs"
+      - "operationalSubState == PENDING_PPPOE_RESTART"
+    expected_outcome: "Manual reprovisioning may be needed. Check MQ and device."
+    log_signatures:
+      - "PPPOE_RESET_EVENT not received"
+      - "ACS request executed successfully"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Diagnostic Decision Trees > Decision Tree 8"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 0.9
+    status: active
+    tags: [failure, pppoe, reset, event, missing]
+    related_to:
+      - target: decision_tree_08_no_pppoe_reset_v1
+        edge_type: DIAGNOSED_BY
+      - target: evidence_pattern_pppoe_not_received_v1
+        edge_type: CONFIRMED_BY

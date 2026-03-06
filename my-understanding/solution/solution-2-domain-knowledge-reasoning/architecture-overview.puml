@@ -1,0 +1,134 @@
+@startuml Architecture Overview
+
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 12
+skinparam shadowing false
+skinparam RoundCorner 8
+skinparam linetype ortho
+
+skinparam component {
+  BackgroundColor #F1F3F4
+  BorderColor #9AA0A6
+}
+
+skinparam package {
+  BackgroundColor #FFFFFF
+  BorderColor #9AA0A6
+  FontStyle bold
+}
+
+skinparam database {
+  BackgroundColor #F3E8FD
+  BorderColor #A142F4
+}
+
+skinparam note {
+  BackgroundColor #FFFDE7
+  BorderColor #F9AB00
+  FontSize 10
+}
+
+title Knowledge-First Agent Architecture\nGeneric domain knowledge + agent-driven retrieval
+
+rectangle "User / Interface" as user_layer #F1F3F4 {
+  component "Customer Support\nChat / Voice / API" as user #FFFFFF
+}
+
+rectangle "Orchestration Layer (Google ADK)" as orch_layer #E8F0FE {
+  component "Service Agent\n(Planner + Executor)" as service_agent #E8F0FE
+  component "Agent Registry\nand Routing" as registry #E8F0FE
+}
+
+rectangle "Domain Agents" as domain_layer #E6F4EA {
+
+  rectangle "Provisioning Agent" as prov_box #E6F4EA {
+    component "LLM + Persona\n+ Behavioral Rules\n(stays in prompt)" as prov_agent #E6F4EA
+  }
+
+  rectangle "WiFi Mesh Agent" as wifi_box #E6F4EA {
+    component "LLM + Persona\n+ Behavioral Rules" as wifi_agent #E6F4EA
+  }
+
+  rectangle "... Agent N" as agent_n #F1F3F4
+}
+
+rectangle "Knowledge Store (filtered semantic search)" as knowledge_layer #F3E8FD {
+
+  database "Domain Knowledge\n\nstates | transitions\nflows | tools | constraints" as knowledge_store
+
+  note bottom of knowledge_store
+    search_knowledge API supports:
+    - metadata filter (domain, type, tenant)
+    - semantic search (natural language query)
+    - structured field match (state values)
+
+    Backend: Cognee / Postgres+pgvector /
+    Qdrant / Neo4j+vector / etc.
+  end note
+
+  rectangle "Provisioning\nKnowledge" as prov_knowledge #F3E8FD
+  rectangle "WiFi Mesh\nKnowledge" as wifi_knowledge #F3E8FD
+  rectangle "Domain N\nKnowledge" as n_knowledge #F1F3F4
+}
+
+rectangle "Live State (MCP Tools)" as mcp_layer #FEF3E0 {
+  component "Service\nInventory" as svc_inv #FEF3E0
+  component "Resource\nInventory" as res_inv #FEF3E0
+  component "Logs and\nTraces" as logs #FEF3E0
+  component "MongoDB\nTransactions" as mongo #FEF3E0
+  component "Other\nAPIs" as other_api #FEF3E0
+}
+
+rectangle "Knowledge Authoring (offline)" as authoring_layer #E0F7FA {
+  component "YAML extraction\nfrom prompt files" as extraction #E0F7FA
+  component "Code-derived\nenrichment" as code_enrich #E0F7FA
+  component "Incident learnings\n(candidate > reviewed > active)" as learnings #E0F7FA
+}
+
+rectangle "Evaluation (DeepEval)" as eval_layer #FCE8E6 {
+  component "Reasoning tests:\nDoes agent query the right\nknowledge and reach the\ncorrect diagnosis?" as eval #FCE8E6
+}
+
+user -down-> service_agent : problem
+service_agent -down-> registry : route to\ndomain
+registry -down-> prov_agent
+registry -down-> wifi_agent
+registry -down-> agent_n
+
+prov_agent -down-> knowledge_store : search_knowledge\n(iterative, on-demand)
+wifi_agent -down-> knowledge_store
+
+prov_agent -down-> svc_inv : MCP tools\n(live state)
+prov_agent -down-> res_inv
+prov_agent -down-> logs
+prov_agent -down-> mongo
+
+wifi_agent -down-> other_api
+
+knowledge_store -left-> prov_knowledge
+knowledge_store -down-> wifi_knowledge
+knowledge_store -right-> n_knowledge
+
+extraction -up-> knowledge_store : load
+code_enrich -up-> knowledge_store : enrich
+learnings -up-> knowledge_store : promote
+
+eval -up-> prov_agent : test
+eval -up-> knowledge_store : validate\nretrieval
+
+legend bottom
+  |= Color |= Layer |= What It Does |
+  |<#E8F0FE>  | Orchestration | Routes problems to the right domain agent |
+  |<#E6F4EA>  | Domain Agents | LLM + persona + tools. Drives its own knowledge retrieval |
+  |<#F3E8FD>  | Knowledge Store | Domain knowledge with filtered semantic search |
+  |<#FEF3E0>  | MCP Tools | Live system state (read-only, not stored in knowledge) |
+  |<#E0F7FA>  | Authoring | Offline process: extract, curate, load knowledge |
+  |<#FCE8E6>  | Evaluation | Tests reasoning quality with domain knowledge + mocked state |
+
+  Key separation:
+  Knowledge Store = how the system works (static, curated, versioned)
+  MCP Tools = current system state (live, real-time, not cached)
+  Agent prompt = persona + behavioral rules only (no domain knowledge)
+endlegend
+
+@enduml

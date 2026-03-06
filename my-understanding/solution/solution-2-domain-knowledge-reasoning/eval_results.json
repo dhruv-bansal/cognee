@@ -1,0 +1,180 @@
+[
+  {
+    "test_id": "reasoning_01_no_resource",
+    "title": "Agent should reason: no cpeId means no resource linked",
+    "derived_from": "Decision Tree 1 in original prompt",
+    "passed": true,
+    "recall": 1.0,
+    "precision": 0.44,
+    "expected_count": 4,
+    "retrieved_count": 9,
+    "true_positives": [
+      "constraint_rdk_async_legacy_sync",
+      "flow_management_system_determination",
+      "state_service_unprovisioned",
+      "tool_get_service_details"
+    ],
+    "missing": [],
+    "extra": [
+      "constraint_central_ri_rdk_only",
+      "constraint_unprovisioned_not_inactive",
+      "transition_legacy_immediate_provisioned",
+      "transition_unprovisioned_to_provisioned",
+      "transition_unprovisioned_to_provisioning_failed"
+    ]
+  },
+  {
+    "test_id": "reasoning_02_device_never_online",
+    "title": "Agent should reason: PENDING_ACTIVE + UNKNOWN means device never came online",
+    "derived_from": "Decision Tree 2 in original prompt",
+    "passed": true,
+    "recall": 1.0,
+    "precision": 0.73,
+    "expected_count": 8,
+    "retrieved_count": 11,
+    "true_positives": [
+      "constraint_rdk_async_legacy_sync",
+      "flow_post_provisioning",
+      "state_resource_op_unknown_pending_unknown",
+      "state_resource_pending_active_assigned",
+      "state_service_unprovisioned",
+      "tool_get_resource",
+      "tool_get_service_details",
+      "transition_unprovisioned_to_provisioned"
+    ],
+    "missing": [],
+    "extra": [
+      "constraint_no_offline_state",
+      "constraint_unprovisioned_not_inactive",
+      "transition_unprovisioned_to_provisioning_failed"
+    ]
+  },
+  {
+    "test_id": "reasoning_03_happy_path",
+    "title": "Agent should recognize successful provisioning state",
+    "derived_from": "Decision Tree 3 in original prompt",
+    "passed": true,
+    "recall": 1.0,
+    "precision": 0.45,
+    "expected_count": 5,
+    "retrieved_count": 11,
+    "true_positives": [
+      "state_resource_active_provisioned",
+      "state_resource_op_enabled_online",
+      "state_service_provisioned",
+      "tool_get_resource",
+      "tool_get_service_details"
+    ],
+    "missing": [],
+    "extra": [
+      "constraint_rdk_async_legacy_sync",
+      "transition_legacy_immediate_provisioned",
+      "transition_op_state_pppoe_cycle",
+      "transition_resource_pending_to_active",
+      "transition_unprovisioned_to_provisioned",
+      "transition_unprovisioned_to_provisioning_failed"
+    ]
+  },
+  {
+    "test_id": "reasoning_04_service_locked",
+    "title": "Agent should reason: online device + lock = provisioning blocked by another process",
+    "derived_from": "Decision Tree 7 in original prompt",
+    "passed": true,
+    "recall": 1.0,
+    "precision": 0.53,
+    "expected_count": 8,
+    "retrieved_count": 15,
+    "true_positives": [
+      "constraint_lock_priority_order",
+      "constraint_stale_lock_threshold",
+      "state_resource_op_enabled_online",
+      "state_service_unprovisioned",
+      "tool_get_resource",
+      "tool_get_service_details",
+      "tool_search_logs",
+      "transition_unprovisioned_to_provisioned"
+    ],
+    "missing": [],
+    "extra": [
+      "constraint_rdk_async_legacy_sync",
+      "constraint_unprovisioned_not_inactive",
+      "flow_job_manager_execution",
+      "flow_post_provisioning",
+      "state_resource_pending_active_assigned",
+      "transition_op_state_pppoe_cycle",
+      "transition_unprovisioned_to_provisioning_failed"
+    ]
+  },
+  {
+    "test_id": "reasoning_05_pppoe_stuck",
+    "title": "Agent should reason: PENDING_PPPOE_RESTART + lock = waiting for event that never came",
+    "derived_from": "Decision Tree 8 in original prompt",
+    "passed": true,
+    "recall": 1.0,
+    "precision": 0.6,
+    "expected_count": 9,
+    "retrieved_count": 15,
+    "true_positives": [
+      "constraint_rdk_async_legacy_sync",
+      "flow_post_provisioning",
+      "state_resource_op_pending_pppoe_restart",
+      "state_service_unprovisioned",
+      "tool_get_resource",
+      "tool_get_service_details",
+      "tool_search_logs",
+      "transition_op_state_pppoe_cycle",
+      "transition_unprovisioned_to_provisioned"
+    ],
+    "missing": [],
+    "extra": [
+      "constraint_lock_priority_order",
+      "constraint_no_offline_state",
+      "constraint_stale_lock_threshold",
+      "constraint_unprovisioned_not_inactive",
+      "state_resource_pending_active_assigned",
+      "transition_unprovisioned_to_provisioning_failed"
+    ]
+  },
+  {
+    "test_id": "reasoning_06_novel_scenario",
+    "title": "Novel problem: agent must reason without a matching decision tree",
+    "derived_from": "No existing decision tree - this tests generalization",
+    "passed": true,
+    "recall": 1.0,
+    "precision": 0.5,
+    "expected_count": 7,
+    "retrieved_count": 14,
+    "true_positives": [
+      "constraint_operation_mapping_non_retryable",
+      "flow_job_manager_execution",
+      "state_service_provisioning_failed",
+      "tool_get_resource",
+      "tool_get_service_details",
+      "tool_query_transaction_job",
+      "transition_unprovisioned_to_provisioning_failed"
+    ],
+    "missing": [],
+    "extra": [
+      "constraint_rdk_async_legacy_sync",
+      "flow_post_provisioning",
+      "state_resource_op_enabled_online",
+      "state_resource_pending_active_assigned",
+      "tool_search_logs",
+      "transition_op_state_pppoe_cycle",
+      "transition_unprovisioned_to_provisioned"
+    ]
+  },
+  {
+    "test_id": "reasoning_07_out_of_scope",
+    "title": "Agent should recognize out-of-scope request",
+    "derived_from": "Scope gating rules in original prompt",
+    "passed": true,
+    "recall": 1.0,
+    "precision": 0.0,
+    "expected_count": 0,
+    "retrieved_count": 0,
+    "true_positives": [],
+    "missing": [],
+    "extra": []
+  }
+]

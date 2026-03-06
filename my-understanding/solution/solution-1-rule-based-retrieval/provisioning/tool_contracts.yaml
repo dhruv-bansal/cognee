@@ -1,0 +1,124 @@
+---
+items:
+
+  - knowledge_id: tool_contract_get_service_details_v1
+    domain: provisioning
+    knowledge_type: tool_contract
+    title: "Get Service Details by Service ID"
+    statement: >
+      Retrieves the current service record from Service Inventory.
+      Returns serviceState, serviceStatus, cpeId, managementSystem,
+      serviceLockReferenceId, provisioning parameters with their statuses,
+      and service characteristics. This is always the FIRST tool to call
+      in any provisioning diagnostic.
+    preconditions:
+      - "serviceId is available"
+    expected_outcome: >
+      Service detail including: serviceState, status, cpeId, managementSystem,
+      serviceLockReferenceId, and parameter application statuses.
+    mcp_tool_name: "get_service_details_by_service_id"
+    mcp_tool_params:
+      required: [service_id]
+    key_response_fields:
+      - serviceState
+      - status
+      - cpeId
+      - managementSystem
+      - serviceLockReferenceId
+      - "characteristics[].status (APPLIED / NOT_APPLIED)"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "At-a-Glance Fields"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 1.0
+    status: active
+    tags: [tool, service_inventory, service_details, first_call]
+
+  - knowledge_id: tool_contract_get_resource_v1
+    domain: provisioning
+    knowledge_type: tool_contract
+    title: "Get Resource by CPE ID"
+    statement: >
+      Retrieves resource details from Central Resource Inventory (for RDK devices)
+      or Natco Resource Inventory (for legacy HDM/RINO/SNMP devices).
+      Central RI ONLY stores RDK resources. Legacy devices are in Natco RI.
+      Returns resourceState, resourceSubState, operationalState,
+      operationalSubState, certificateState, certificateExpiryDate, resourceType.
+    preconditions:
+      - "cpeId is available (from service details)"
+      - "cpeId is NOT null"
+    expected_outcome: >
+      Resource state, operational state, and device connectivity information.
+    mcp_tool_name: "get_resource_by_cpe_id"
+    mcp_tool_params:
+      required: [cpe_id]
+    key_response_fields:
+      - resourceState
+      - resourceSubState
+      - operationalState
+      - operationalSubState
+      - certificateState
+      - certificateExpiryDate
+      - resourceType
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "At-a-Glance Fields"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 1.0
+    status: active
+    tags: [tool, resource_inventory, resource_details, cpe]
+
+  - knowledge_id: tool_contract_check_provisioning_logs_v1
+    domain: provisioning
+    knowledge_type: tool_contract
+    title: "Check Provisioning Manager and Job Manager Logs"
+    statement: >
+      Search microservice logs for provisioning-related events and errors.
+      Key microservices: Provisioning Manager (pre/post provisioning orchestration),
+      Job Manager / ACS (device communication, operation mapping),
+      Xmidt (WebPA protocol translation, device websocket).
+      Use transactionId as the primary correlation key across systems.
+      Transaction ID format: <transactionId>_oneBroadband (initial),
+      with _retry_1, _retry_2 suffixes for retries.
+    preconditions:
+      - "serviceId is available"
+      - "investigating a provisioning failure or incomplete provisioning"
+    expected_outcome: >
+      Log entries showing provisioning flow progress, errors, or stuck points.
+    mcp_tool_name: "search_logs"
+    mcp_tool_params:
+      required: [service_id]
+      optional: [transaction_id, microservice_name, time_range]
+    key_log_patterns:
+      success:
+        - "Creating service while pre-provisioning"
+        - "Publishing OneBroadband provisioning event"
+        - "ACS request executed successfully"
+        - "PPPOE_RESET_EVENT received"
+        - "Service state updated to PROVISIONED"
+      lock_issues:
+        - "Service is locked"
+        - "Lock acquisition failed"
+        - "DELAYED_RETRY_PROCESSING lock present"
+      acs_failures:
+        - "ACS provisioning failure"
+        - "Invalid parameter / 520"
+        - "Device communication failed"
+      job_manager:
+        - "cpe operation mapping not found for operation {} and cpeSpecification {}"
+        - "OperationNotSupportedException"
+        - "transactionJobStatus: PARTIAL_SUCCESS"
+        - "transactionJobStatus: FAILED"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Log Analysis Guide"
+    source_kind: prompt_extraction
+    tenant_scope: [all]
+    environment_scope: [production, staging]
+    version: "1.0"
+    confidence: 1.0
+    status: active
+    tags: [tool, logs, provisioning_manager, job_manager, acs]

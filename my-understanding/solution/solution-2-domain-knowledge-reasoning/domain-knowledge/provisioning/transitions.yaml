@@ -1,0 +1,111 @@
+---
+# Domain knowledge: How states connect. What triggers transitions.
+# The agent uses this to reason: "Given the current state, what SHOULD have
+# happened to reach the expected state? What could have gone wrong?"
+
+items:
+
+  - knowledge_id: transition_unprovisioned_to_provisioned
+    domain: provisioning
+    knowledge_type: transition_rule
+    from_state: {entity: service, field: serviceState, value: UNPROVISIONED}
+    to_state: {entity: service, field: serviceState, value: PROVISIONED}
+    statement: >
+      Successful transition from UNPROVISIONED to PROVISIONED requires ALL of:
+      1. Device must be online (operationalState ENABLED/ONLINE)
+      2. CPEProvisioningEvent consumed from message queue
+      3. ACS/Job Manager successfully applies parameters to device (200 OK)
+      4. PPPOE_RESET_EVENT received from device (~5 seconds after 200 OK)
+      5. Post-provisioning actions complete (state update, parameter marking, notifications)
+    required_conditions:
+      - "Device online (ENABLED/ONLINE)"
+      - "CPEProvisioningEvent published and consumed"
+      - "ACS request successful"
+      - "PPPOE_RESET_EVENT received"
+      - "No blocking locks (DEPROVISIONING or DISASSOCIATE)"
+    applies_to: "RDK management system only"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "State Transition Rules + Post-Provisioning Flow"
+    version: "1.0"
+    status: active
+    tags: [transition, service, provisioning, rdk]
+
+  - knowledge_id: transition_unprovisioned_to_provisioning_failed
+    domain: provisioning
+    knowledge_type: transition_rule
+    from_state: {entity: service, field: serviceState, value: UNPROVISIONED}
+    to_state: {entity: service, field: serviceState, value: PROVISIONING_FAILED}
+    statement: >
+      Service transitions to PROVISIONING_FAILED when device configuration
+      fails and all retry attempts are exhausted. This transition ONLY occurs
+      if service is NOT in PENDING_CHANGE state.
+    required_conditions:
+      - "ACS/Job Manager provisioning failed"
+      - "All retry attempts exhausted (max 2-5 attempts with +2 min backoff)"
+      - "Service was NOT in PENDING_CHANGE state"
+    exception: >
+      If service IS in PENDING_CHANGE state when failure occurs, the state
+      remains PENDING_CHANGE (not transitioned to PROVISIONING_FAILED).
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "State Transition Rules"
+    version: "1.0"
+    status: active
+    tags: [transition, service, failure, retry]
+
+  - knowledge_id: transition_legacy_immediate_provisioned
+    domain: provisioning
+    knowledge_type: transition_rule
+    from_state: {entity: service, field: serviceState, value: "(creation)"}
+    to_state: {entity: service, field: serviceState, value: PROVISIONED}
+    statement: >
+      For LEGACY management systems (HDM, RINO, SNMP), provisioning is
+      synchronous and completes during pre-provisioning. The service is
+      immediately set to PROVISIONED regardless of device online status.
+      No CPEProvisioningEvent is published. No post-provisioning occurs.
+    required_conditions:
+      - "managementSystem is HDM, RINO, or SNMP"
+    applies_to: "LEGACY management systems only"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Management System Determination > Service State by Management System"
+    version: "1.0"
+    status: active
+    tags: [transition, service, legacy, synchronous]
+
+  - knowledge_id: transition_resource_pending_to_active
+    domain: provisioning
+    knowledge_type: transition_rule
+    from_state: {entity: resource, value: "PENDING_ACTIVE / ASSIGNED"}
+    to_state: {entity: resource, value: "ACTIVE / PROVISIONED"}
+    statement: >
+      Resource transitions from PENDING_ACTIVE to ACTIVE (with SubState PROVISIONED)
+      upon successful provisioning completion. This happens as part of
+      post-provisioning actions after PPPOE_RESET_EVENT is received.
+    required_conditions:
+      - "Post-provisioning completed successfully"
+      - "Service transitioned to PROVISIONED"
+    note: >
+      With resourceStateHarmonisation flag OFF, transition goes to
+      PROVISIONED directly (no ACTIVE state).
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "State Transition Rules > Resource State Transitions"
+    version: "1.0"
+    status: active
+    tags: [transition, resource, provisioning]
+
+  - knowledge_id: transition_op_state_pppoe_cycle
+    domain: provisioning
+    knowledge_type: transition_rule
+    from_state: {entity: resource, value: "ENABLED / ONLINE"}
+    to_state: {entity: resource, value: "UNKNOWN / PENDING_PPPOE_RESTART"}
+    statement: >
+      When PPPoE credentials are applied to the device, the operational state
+      transitions from ENABLED/ONLINE to UNKNOWN/PENDING_PPPOE_RESTART.
+      After the device restarts PPPoE and reconnects, it transitions back
+      to ENABLED/ONLINE.
+    required_conditions:
+      - "PPPoE parameters being applied via ACS"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "State Transition Rules > Operational State Transitions"
+    version: "1.0"
+    status: active
+    tags: [transition, resource, operational, pppoe]

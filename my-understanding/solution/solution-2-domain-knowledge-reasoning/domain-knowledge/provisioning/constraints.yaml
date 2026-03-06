@@ -1,0 +1,145 @@
+---
+# Domain knowledge: Rules that are always true. Invariants and constraints.
+# The agent uses these to avoid incorrect reasoning and catch misconceptions.
+
+items:
+
+  - knowledge_id: constraint_rdk_async_legacy_sync
+    domain: provisioning
+    knowledge_type: constraint
+    title: "RDK is Asynchronous, LEGACY is Synchronous"
+    statement: >
+      RDK provisioning is asynchronous: pre-provisioning publishes an event,
+      post-provisioning completes later when device is online.
+      LEGACY (HDM/RINO/SNMP) provisioning is synchronous: completes entirely
+      during pre-provisioning, service is immediately PROVISIONED.
+      This is the most fundamental behavioral difference in the provisioning domain.
+    implication: >
+      For RDK: UNPROVISIONED is normal after pre-provisioning.
+      For LEGACY: UNPROVISIONED would be unexpected.
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Key Rules + Management System Determination"
+    version: "1.0"
+    status: active
+    tags: [constraint, rdk, legacy, async, sync, fundamental]
+
+  - knowledge_id: constraint_no_offline_state
+    domain: provisioning
+    knowledge_type: constraint
+    title: "No Explicit OFFLINE State Exists"
+    statement: >
+      There is no explicit OFFLINE sub-state in the system. When a device
+      goes offline, the representation is operationalState=UNKNOWN with a
+      contextual sub-state (PENDING_UNKNOWN, PENDING_PPPOE_RESTART, etc.).
+    implication: >
+      Never look for or reference an OFFLINE state. Always check for
+      operationalState=UNKNOWN when investigating offline devices.
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Core Entities and States > Resource Operational States"
+    version: "1.0"
+    status: active
+    tags: [constraint, offline, unknown, terminology]
+
+  - knowledge_id: constraint_unprovisioned_not_inactive
+    domain: provisioning
+    knowledge_type: constraint
+    title: "UNPROVISIONED Is Not The Same As INACTIVE"
+    statement: >
+      Failed or incomplete provisioning results in UNPROVISIONED state.
+      INACTIVE means the service was explicitly deactivated or deprovisioned.
+      These are completely different conditions with different causes and resolutions.
+    implication: >
+      When a user says "service is inactive" or "not working", always check the
+      actual serviceState field first. Do not assume INACTIVE.
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Common Pitfalls and Clarifications"
+    version: "1.0"
+    status: active
+    tags: [constraint, terminology, common_mistake]
+
+  - knowledge_id: constraint_central_ri_rdk_only
+    domain: provisioning
+    knowledge_type: constraint
+    title: "Central Resource Inventory Only Stores RDK Devices"
+    statement: >
+      Central Resource Inventory (RI) only contains RDK resources.
+      Legacy devices (HDM/RINO/SNMP) are stored in Natco Resource Inventory (NRI).
+      NONDTROUTER devices are not in Central RI (only a synthetic CPE ID exists).
+    implication: >
+      If a resource is found in Central RI, it is always RDK.
+      Do not expect Central RI lookups to return LEGACY or NONDTROUTER devices.
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Core Entities and States > Resource States"
+    version: "1.0"
+    status: active
+    tags: [constraint, resource_inventory, rdk, legacy]
+
+  - knowledge_id: constraint_lock_priority_order
+    domain: provisioning
+    knowledge_type: constraint
+    title: "Lock Check Priority Order"
+    statement: >
+      During post-provisioning, locks are checked in strict order:
+      (1) DEPROVISIONING_DELAYED_RETRY_PROCESSING -> abort provisioning.
+      (2) DISASSOCIATE_REQUEST_PROCESSING -> abort provisioning.
+      (3) DELAYED_RETRY_PROCESSING -> acquired to prevent concurrent provisioning.
+      If any higher-priority lock exists, provisioning is aborted.
+    implication: >
+      A service lock does not always mean provisioning is stuck. It may mean
+      deprovisioning or disassociation is correctly taking priority.
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Service Lock Mechanisms > Lock Priority and Conflict Resolution"
+    version: "1.0"
+    status: active
+    tags: [constraint, lock, priority, abort]
+
+  - knowledge_id: constraint_operation_mapping_non_retryable
+    domain: provisioning
+    knowledge_type: constraint
+    title: "Operation Mapping Failure Is Non-Retryable"
+    statement: >
+      If Job Manager cannot find an Operation Mapping for the device specification
+      (operation + management system + manufacturer + product class + software version),
+      the failure is immediate and non-retryable. No TransactionJob is created.
+      The Provisioning Manager will NOT retry this error.
+    implication: >
+      Absence of a TransactionJob in MongoDB for a given transaction is a strong
+      signal that the failure was an operation mapping issue, not an ACS execution issue.
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Job Manager Execution Details > Operation Mapping Failures"
+    version: "1.0"
+    status: active
+    tags: [constraint, operation_mapping, non_retryable, job_manager]
+
+  - knowledge_id: constraint_addon_failure_independent
+    domain: provisioning
+    knowledge_type: constraint
+    title: "Addon Service Failures Do Not Affect Parent Service"
+    statement: >
+      Addon provisioning failures (OneBroadbandRouterManagement,
+      OneBroadbandParentalControlAndSecurity, OneBroadbandWifiMesh, etc.)
+      do NOT affect the parent OneBroadband service state.
+    implication: >
+      When diagnosing the parent service, addon failures are irrelevant to
+      the parent service state. Investigate them separately.
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Post-Provisioning Flow"
+    version: "1.0"
+    status: active
+    tags: [constraint, addon, independent]
+
+  - knowledge_id: constraint_stale_lock_threshold
+    domain: provisioning
+    knowledge_type: constraint
+    title: "Stale Lock Threshold: 15-30 Minutes"
+    statement: >
+      A service lock held for more than 15-30 minutes with no active transaction
+      for the lock reference ID is likely stale. Manually releasing a valid (non-stale)
+      lock can cause race conditions. Always verify transaction inactivity before release.
+    implication: >
+      Check lock duration and transaction activity before recommending lock release.
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Service Lock Mechanisms > Stale Lock Diagnosis"
+    version: "1.0"
+    status: active
+    tags: [constraint, lock, stale, threshold]

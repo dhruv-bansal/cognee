@@ -1,0 +1,101 @@
+---
+# Domain knowledge: What tools exist and what they tell you.
+# The agent uses this to know HOW to gather evidence for any problem.
+
+items:
+
+  - knowledge_id: tool_get_service_details
+    domain: provisioning
+    knowledge_type: tool_contract
+    title: "Get Service Details by Service ID"
+    statement: >
+      Retrieves the current service record from Service Inventory.
+      This is always the first tool to call in any provisioning investigation.
+    mcp_tool_name: "get_service_details_by_service_id"
+    required_params: [service_id]
+    returns:
+      - {field: serviceState, meaning: "Current provisioning state"}
+      - {field: status, meaning: "ENABLED / NOT_SUPPORTED / DISABLED"}
+      - {field: cpeId, meaning: "Linked resource ID (null if no resource)"}
+      - {field: managementSystem, meaning: "RDK / HDM / RINO / SNMP / NONDTROUTER / UNKNOWN"}
+      - {field: serviceLockReferenceId, meaning: "Lock reference (null if not locked)"}
+      - {field: "characteristics[].status", meaning: "APPLIED or NOT_APPLIED per parameter"}
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "At-a-Glance Fields"
+    version: "1.0"
+    status: active
+    tags: [tool, service_inventory, first_call]
+
+  - knowledge_id: tool_get_resource
+    domain: provisioning
+    knowledge_type: tool_contract
+    title: "Get Resource by CPE ID"
+    statement: >
+      Retrieves resource details. Central RI only stores RDK resources.
+      Legacy devices (HDM/RINO/SNMP) are in Natco RI.
+      NONDTROUTER devices are not in Central RI.
+    mcp_tool_name: "get_resource_by_cpe_id"
+    required_params: [cpe_id]
+    returns:
+      - {field: resourceState, meaning: "DRAFT / INACTIVE / PENDING_ACTIVE / ACTIVE"}
+      - {field: resourceSubState, meaning: "UNASSIGNED / ASSIGNED / PROVISIONED etc."}
+      - {field: operationalState, meaning: "ENABLED or UNKNOWN"}
+      - {field: operationalSubState, meaning: "ONLINE / PENDING_UNKNOWN / PENDING_PPPOE_RESTART etc."}
+      - {field: certificateState, meaning: "VALID / CERTIFICATE_FAILED"}
+      - {field: certificateExpiryDate, meaning: "Certificate expiry"}
+      - {field: resourceType, meaning: "HOME_GATEWAY / MESH / UBI_MESH"}
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "At-a-Glance Fields"
+    version: "1.0"
+    status: active
+    tags: [tool, resource_inventory, cpe]
+
+  - knowledge_id: tool_search_logs
+    domain: provisioning
+    knowledge_type: tool_contract
+    title: "Search Microservice Logs"
+    statement: >
+      Search logs across provisioning-related microservices. Use transactionId
+      as primary correlation key (format: <id>_oneBroadband, with _retry_N for retries).
+    mcp_tool_name: "search_logs"
+    required_params: [service_id]
+    optional_params: [transaction_id, microservice_name, time_range]
+    key_microservices:
+      - {name: "Provisioning Manager", responsibility: "Pre/post provisioning orchestration"}
+      - {name: "Job Manager / ACS", responsibility: "Device communication, operation mapping"}
+      - {name: "Xmidt", responsibility: "WebPA protocol, device websocket"}
+      - {name: "Home Network Management", responsibility: "Home document creation"}
+      - {name: "Device Manager", responsibility: "Device state management"}
+      - {name: "Service Inventory", responsibility: "Service state storage"}
+      - {name: "Resource Inventory", responsibility: "Resource state storage"}
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Log Analysis Guide"
+    version: "1.0"
+    status: active
+    tags: [tool, logs, correlation]
+
+  - knowledge_id: tool_query_transaction_job
+    domain: provisioning
+    knowledge_type: tool_contract
+    title: "Query TransactionJob in MongoDB"
+    statement: >
+      Query the transactions collection in MongoDB for Job Manager execution records.
+      TransactionJob is the source of truth for ACS execution results.
+      If no TransactionJob exists for a transaction, it means the Operation Mapping
+      lookup failed before execution started (pre-execution failure).
+    mcp_tool_name: "query_mongodb"
+    required_params: [transaction_id]
+    returns:
+      - {field: transactionJobStatus, meaning: "SUCCESS / PARTIAL_SUCCESS / FAILED"}
+      - {field: "acsResponse.provisioningDetails", meaning: "Per-parameter result array"}
+      - {field: manufacturer, meaning: "Device manufacturer"}
+      - {field: productClass, meaning: "Device model"}
+      - {field: softwareVersion, meaning: "Device firmware"}
+    diagnostic_value: >
+      TransactionJob existence differentiates ACS execution failure (job exists, status
+      FAILED) from operation mapping failure (no job exists at all).
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Job Manager Execution Details > TransactionJob Document"
+    version: "1.0"
+    status: active
+    tags: [tool, mongodb, transaction_job, acs]

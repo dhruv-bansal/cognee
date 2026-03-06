@@ -1,0 +1,114 @@
+---
+# Domain knowledge: How the system works end-to-end.
+# The agent uses this to trace operations and understand where failures can occur.
+
+items:
+
+  - knowledge_id: flow_pre_provisioning
+    domain: provisioning
+    knowledge_type: system_flow
+    title: "Pre-Provisioning Flow"
+    statement: >
+      Pre-provisioning is triggered by PUT /activation-configuration/v3/<serviceId>.
+      Steps: (1) Validate request (lock check, resource validation, characteristics).
+      (2) Enrich with tenant-specific default services.
+      (3) Retrieve supporting resource: look up in Central RI first, then Natco RI.
+      (4) Determine management system based on resource location.
+      (5) Create service in Service Inventory with initial state based on mgmt system.
+      (6) For RDK: update resource to PENDING_ACTIVE/ASSIGNED and publish
+      CPEProvisioningEvent to message queue. For LEGACY: provisioning completes
+      synchronously, service is already PROVISIONED. API returns 202 Accepted.
+    components_involved:
+      - "Provisioning Manager"
+      - "Service Inventory"
+      - "Central Resource Inventory"
+      - "Natco Resource Inventory"
+      - "Message Queue"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Pre-Provisioning Flow"
+    version: "1.0"
+    status: active
+    tags: [flow, pre_provisioning]
+
+  - knowledge_id: flow_post_provisioning
+    domain: provisioning
+    knowledge_type: system_flow
+    title: "Post-Provisioning Flow (RDK only)"
+    statement: >
+      Triggered by CPEProvisioningEvent from message queue. Requires device to be
+      online. Steps: (1) Consume event, verify service not already PROVISIONED/INACTIVE.
+      (2) Acquire DELAYED_RETRY_PROCESSING lock. Check no deprovisioning or
+      disassociation locks exist (abort if found). (3) Retrieve provisioning params
+      with status NOT_APPLIED, build Job Manager request. (4) Submit ACS request
+      to Job Manager. Device applies parameters (WiFi, DHCP, firewall, QoS, PPPoE).
+      (5) Wait for PPPOE_RESET_EVENT from device (~5s after 200 OK).
+      (6) On success: update service to PROVISIONED, resource to ACTIVE/PROVISIONED,
+      mark params APPLIED, trigger addon provisioning, release lock, send notifications.
+    components_involved:
+      - "Message Queue"
+      - "Provisioning Manager (Delayed Retry Processor)"
+      - "Job Manager"
+      - "ACS / Xmidt"
+      - "CPE Device"
+      - "Service Inventory"
+      - "Resource Inventory"
+    critical_dependency: >
+      If device is offline when event is consumed, the event is queued until
+      device comes online (boot/online event received).
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Post-Provisioning Flow"
+    version: "1.0"
+    status: active
+    tags: [flow, post_provisioning, rdk, async]
+
+  - knowledge_id: flow_job_manager_execution
+    domain: provisioning
+    knowledge_type: system_flow
+    title: "Job Manager Execution and Operation Mapping"
+    statement: >
+      Job Manager receives ACS requests from Provisioning Manager. It must
+      resolve the operation (setProvisioningParams) to device-specific commands
+      using Operation Mapping. Lookup criteria: Operation + Management System +
+      Manufacturer + Product Class + Software Version. If no mapping found:
+      OperationNotSupportedException, provisioning fails immediately, no
+      TransactionJob created, NON-RETRYABLE. If mapping found: creates
+      TransactionJob in MongoDB, sends commands via Xmidt to device. Device
+      responds per-parameter (SUCCESS/FAILED/INVALID). TransactionJob status:
+      SUCCESS (all passed), PARTIAL_SUCCESS (some failed), FAILED (all failed).
+    components_involved:
+      - "Job Manager"
+      - "Operation Mapping Repository"
+      - "MongoDB (transactions collection)"
+      - "Xmidt / Xmidt-RDK-Executor"
+      - "CPE Device"
+    transaction_id_format: >
+      Initial: <transactionId>_oneBroadband.
+      Retries: <transactionId>_oneBroadband_retry_1, _retry_2, etc.
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Job Manager Execution Details"
+    version: "1.0"
+    status: active
+    tags: [flow, job_manager, acs, operation_mapping]
+
+  - knowledge_id: flow_management_system_determination
+    domain: provisioning
+    knowledge_type: system_flow
+    title: "Management System Determination Logic"
+    statement: >
+      Determines how provisioning will behave. Logic:
+      If no supportingResources provided: managementSystem = UNKNOWN.
+      If entityType is NONDTROUTER: managementSystem = NONDTROUTER.
+      If entityType is router: query Central RI by MAC. If found: RDK.
+      If not in Central RI: query Natco RI. If found: use resource.managementSystem
+      (HDM/RINO/SNMP). If not found anywhere: UNKNOWN.
+    outcome_table:
+      - {scenario: "Found in Central RI", mgmt_system: RDK, initial_state: UNPROVISIONED, behavior: "Async event-based"}
+      - {scenario: "Found in Natco RI", mgmt_system: "LEGACY (HDM/RINO/SNMP)", initial_state: PROVISIONED, behavior: "Sync inline"}
+      - {scenario: "Not found anywhere", mgmt_system: UNKNOWN, initial_state: UNPROVISIONED, behavior: "Waiting for device"}
+      - {scenario: "NONDTROUTER", mgmt_system: NONDTROUTER, initial_state: PROVISIONED, behavior: "Immediate activation"}
+      - {scenario: "No resource provided", mgmt_system: UNKNOWN, initial_state: UNPROVISIONED, behavior: "Waiting for linkage"}
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Management System Determination"
+    version: "1.0"
+    status: active
+    tags: [flow, management_system, determination]

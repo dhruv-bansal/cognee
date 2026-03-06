@@ -1,0 +1,224 @@
+---
+# Test cases derived from the decision trees in the original prompt file.
+# These are NOT agent input. They define EXPECTED REASONING OUTCOMES.
+#
+# The test: give the agent ONLY domain knowledge (states, transitions, flows,
+# tools, constraints) + the problem. Does it reason to the correct diagnosis
+# without being told a decision tree?
+#
+# If yes: the domain knowledge is sufficient for reasoning.
+# If no: something is missing from the domain knowledge model.
+
+test_cases:
+
+  - test_id: reasoning_01_no_resource
+    title: "Agent should reason: no cpeId means no resource linked"
+    derived_from: "Decision Tree 1 in original prompt"
+    user_input: "Service 12345 is stuck in UNPROVISIONED. Can you check?"
+    tool_responses:
+      get_service_details_by_service_id:
+        serviceState: UNPROVISIONED
+        cpeId: null
+        managementSystem: UNKNOWN
+        serviceLockReferenceId: null
+    domain_knowledge_needed:
+      - state_service_unprovisioned
+      - flow_management_system_determination
+      - tool_get_service_details
+      - constraint_rdk_async_legacy_sync
+    expected_reasoning: >
+      Service is UNPROVISIONED with no cpeId and managementSystem UNKNOWN.
+      From the management system determination flow, UNKNOWN means no supporting
+      resource was provided. Without a linked resource, post-provisioning cannot
+      be triggered. This is expected behavior for advance-created services.
+    expected_conclusion: "Link service to a resource via PATCH AC or PATCH RI API."
+    expected_tools_called: [get_service_details_by_service_id]
+
+  - test_id: reasoning_02_device_never_online
+    title: "Agent should reason: PENDING_ACTIVE + UNKNOWN means device never came online"
+    derived_from: "Decision Tree 2 in original prompt"
+    user_input: "Customer's broadband 67890 is unprovisioned. Device was installed yesterday."
+    tool_responses:
+      get_service_details_by_service_id:
+        serviceState: UNPROVISIONED
+        cpeId: "abc123"
+        managementSystem: RDK
+        serviceLockReferenceId: null
+      get_resource_by_cpe_id:
+        resourceState: PENDING_ACTIVE
+        resourceSubState: ASSIGNED
+        operationalState: UNKNOWN
+        operationalSubState: PENDING_UNKNOWN
+    domain_knowledge_needed:
+      - state_service_unprovisioned
+      - state_resource_pending_active_assigned
+      - state_resource_op_unknown_pending_unknown
+      - transition_unprovisioned_to_provisioned
+      - flow_post_provisioning
+      - constraint_rdk_async_legacy_sync
+      - tool_get_service_details
+      - tool_get_resource
+    expected_reasoning: >
+      Service is UNPROVISIONED with RDK management system. Resource is
+      PENDING_ACTIVE/ASSIGNED (linked but not provisioned). Operational state
+      is UNKNOWN/PENDING_UNKNOWN (device offline). From the transition rules,
+      UNPROVISIONED->PROVISIONED requires device online + CPEProvisioningEvent
+      consumed. From post-provisioning flow, if device is offline, the event
+      is queued until device comes online. The device has never established
+      a websocket connection. Provisioning cannot proceed until device is online.
+    expected_conclusion: "Investigate device connectivity/power. Provisioning will auto-resume when device comes online."
+    expected_tools_called: [get_service_details_by_service_id, get_resource_by_cpe_id]
+
+  - test_id: reasoning_03_happy_path
+    title: "Agent should recognize successful provisioning state"
+    derived_from: "Decision Tree 3 in original prompt"
+    user_input: "Can you verify service 11111 is correctly provisioned?"
+    tool_responses:
+      get_service_details_by_service_id:
+        serviceState: PROVISIONED
+        status: ENABLED
+        cpeId: "xyz789"
+        managementSystem: RDK
+        serviceLockReferenceId: null
+      get_resource_by_cpe_id:
+        resourceState: ACTIVE
+        resourceSubState: PROVISIONED
+        operationalState: ENABLED
+        operationalSubState: ONLINE
+    domain_knowledge_needed:
+      - state_service_provisioned
+      - state_resource_active_provisioned
+      - state_resource_op_enabled_online
+      - tool_get_service_details
+      - tool_get_resource
+    expected_reasoning: >
+      Service is PROVISIONED and ENABLED. Resource is ACTIVE/PROVISIONED.
+      Device is ENABLED/ONLINE. No lock present. All states indicate
+      successful provisioning completion.
+    expected_conclusion: "Service is correctly provisioned and operational. No issues found."
+    expected_tools_called: [get_service_details_by_service_id, get_resource_by_cpe_id]
+
+  - test_id: reasoning_04_service_locked
+    title: "Agent should reason: online device + lock = provisioning blocked by another process"
+    derived_from: "Decision Tree 7 in original prompt"
+    user_input: "Service 22222 seems stuck. Device is showing online but nothing is happening."
+    tool_responses:
+      get_service_details_by_service_id:
+        serviceState: UNPROVISIONED
+        cpeId: "cpe456"
+        managementSystem: RDK
+        serviceLockReferenceId: "lock-ref-99887"
+      get_resource_by_cpe_id:
+        resourceState: PENDING_ACTIVE
+        resourceSubState: ASSIGNED
+        operationalState: ENABLED
+        operationalSubState: ONLINE
+    domain_knowledge_needed:
+      - state_service_unprovisioned
+      - state_resource_op_enabled_online
+      - transition_unprovisioned_to_provisioned
+      - constraint_lock_priority_order
+      - constraint_stale_lock_threshold
+      - tool_get_service_details
+      - tool_get_resource
+      - tool_search_logs
+    expected_reasoning: >
+      Service is UNPROVISIONED but device is ENABLED/ONLINE. From transition
+      rules, provisioning should be possible (device is online). However,
+      serviceLockReferenceId is present. From lock constraints, a lock means
+      another operation is holding the service. From stale lock constraint,
+      if held > 15-30 min with no active transaction, it's likely stale.
+      Need to check logs for lock holder activity.
+    expected_conclusion: "Service is locked. Check lock duration and transaction activity. Release if stale."
+    expected_tools_called: [get_service_details_by_service_id, get_resource_by_cpe_id, search_logs]
+
+  - test_id: reasoning_05_pppoe_stuck
+    title: "Agent should reason: PENDING_PPPOE_RESTART + lock = waiting for event that never came"
+    derived_from: "Decision Tree 8 in original prompt"
+    user_input: "Service 33333 params were applied but it's still unprovisioned and locked."
+    tool_responses:
+      get_service_details_by_service_id:
+        serviceState: UNPROVISIONED
+        cpeId: "cpe789"
+        managementSystem: RDK
+        serviceLockReferenceId: "lock-ref-55443"
+      get_resource_by_cpe_id:
+        resourceState: PENDING_ACTIVE
+        resourceSubState: ASSIGNED
+        operationalState: UNKNOWN
+        operationalSubState: PENDING_PPPOE_RESTART
+    domain_knowledge_needed:
+      - state_service_unprovisioned
+      - state_resource_op_pending_pppoe_restart
+      - transition_unprovisioned_to_provisioned
+      - transition_op_state_pppoe_cycle
+      - flow_post_provisioning
+      - constraint_rdk_async_legacy_sync
+      - tool_get_service_details
+      - tool_get_resource
+      - tool_search_logs
+    expected_reasoning: >
+      Service UNPROVISIONED, locked, with operationalSubState PENDING_PPPOE_RESTART.
+      From state definition, PENDING_PPPOE_RESTART means PPPoE params were applied
+      and system is waiting for device to restart PPPoE (~5s after 200 OK).
+      From transition rules, UNPROVISIONED->PROVISIONED requires PPPOE_RESET_EVENT.
+      From the PPPoE cycle transition, device should go UNKNOWN/PENDING_PPPOE_RESTART
+      then back to ENABLED/ONLINE. The event never arrived. Service stays locked
+      waiting. Need to check: was ACS 200 OK received? Was event published but
+      not consumed? Is device still responsive?
+    expected_conclusion: "PPPOE_RESET_EVENT never arrived. Check ACS logs, MQ, device. May need manual reprovisioning."
+    expected_tools_called: [get_service_details_by_service_id, get_resource_by_cpe_id, search_logs]
+
+  - test_id: reasoning_06_novel_scenario
+    title: "Novel problem: agent must reason without a matching decision tree"
+    derived_from: "No existing decision tree - this tests generalization"
+    user_input: "Service 44444 is PROVISIONING_FAILED but the device is online and we can't find any transaction job in MongoDB."
+    tool_responses:
+      get_service_details_by_service_id:
+        serviceState: PROVISIONING_FAILED
+        cpeId: "cpe999"
+        managementSystem: RDK
+        serviceLockReferenceId: null
+      get_resource_by_cpe_id:
+        resourceState: PENDING_ACTIVE
+        resourceSubState: ASSIGNED
+        operationalState: ENABLED
+        operationalSubState: ONLINE
+      query_mongodb:
+        result: null
+    domain_knowledge_needed:
+      - state_service_provisioning_failed
+      - transition_unprovisioned_to_provisioning_failed
+      - flow_job_manager_execution
+      - constraint_operation_mapping_non_retryable
+      - tool_get_service_details
+      - tool_get_resource
+      - tool_query_transaction_job
+    expected_reasoning: >
+      Service is PROVISIONING_FAILED. Device is online. No TransactionJob in MongoDB.
+      From Job Manager flow, if no TransactionJob exists it means the failure
+      happened before execution: Operation Mapping lookup failed. From constraint,
+      operation mapping failure is non-retryable. From Job Manager flow, the lookup
+      uses operation + management system + manufacturer + product class + software version.
+      The mapping is missing for this device specification.
+    expected_conclusion: >
+      Operation Mapping not found for this device specification. Need to create
+      a mapping in Operation Mapping Repository or correct the device CPE specification
+      in Resource Inventory. This is non-retryable; provisioning will not auto-recover.
+    expected_tools_called: [get_service_details_by_service_id, get_resource_by_cpe_id, query_mongodb]
+    notes: >
+      This test case validates that the agent can handle a scenario that was
+      covered by Decision Tree 11 in the original prompt but is NOT provided
+      as a pre-baked answer. The agent must derive this from domain knowledge alone.
+
+  - test_id: reasoning_07_out_of_scope
+    title: "Agent should recognize out-of-scope request"
+    derived_from: "Scope gating rules in original prompt"
+    user_input: "My WiFi speed is slow on 5GHz. Can you check?"
+    tool_responses: {}
+    domain_knowledge_needed: []
+    expected_reasoning: >
+      This is about WiFi performance, not OneBroadband provisioning.
+    expected_conclusion: "Politely refuse. Not a provisioning diagnostic issue."
+    expected_tools_called: []
+    notes: "Scope gating stays as behavioral instruction in prompt, not domain knowledge."

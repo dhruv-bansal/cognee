@@ -19,7 +19,8 @@ The intent is to document how the current system works today so we can evolve ar
 7. [06-prompt-hub-and-knowledge-model.md](/Users/fracon/Documents/code/exploration/ai-agent/graph-vector/cognee/my-understanding/current-agent-code-understanding/06-prompt-hub-and-knowledge-model.md)
 8. [07-evals-current-state.md](/Users/fracon/Documents/code/exploration/ai-agent/graph-vector/cognee/my-understanding/current-agent-code-understanding/07-evals-current-state.md)
 9. [08-observed-gaps-and-risks.md](/Users/fracon/Documents/code/exploration/ai-agent/graph-vector/cognee/my-understanding/current-agent-code-understanding/08-observed-gaps-and-risks.md)
-10. [questions.md](/Users/fracon/Documents/code/exploration/ai-agent/graph-vector/cognee/my-understanding/current-agent-code-understanding/questions.md)
+10. [09-provisioning-knowledge-model-v1.md](/Users/fracon/Documents/code/exploration/ai-agent/graph-vector/cognee/my-understanding/current-agent-code-understanding/09-provisioning-knowledge-model-v1.md)
+11. [questions.md](/Users/fracon/Documents/code/exploration/ai-agent/graph-vector/cognee/my-understanding/current-agent-code-understanding/questions.md)
 
 ## Quick Summary
 

@@ -35,33 +35,68 @@ Memory modeling approach is still open, but the goal (externalized, manageable k
 
 ## New Follow-up Questions (Knowledge Focus)
 
-- [ ] 18. What is the first formal knowledge taxonomy we should use (for example: domain_facts, runbooks, incident_rca, chat_history, learnings, feedback, decision_logs)?
-Answer:
-Direction is to externalize all prompt-embedded knowledge first and evaluate retrieval accuracy. A strict formal taxonomy is not finalized yet.
+- [x] 18. What is the first formal knowledge taxonomy we should use (for example: domain_facts, runbooks, incident_rca, chat_history, learnings, feedback, decision_logs)?
+User answer summary:
+Externalize prompt-embedded knowledge first, then validate retrieval accuracy.
+Decision (v1):
+Use this taxonomy for Provisioning domain extraction:
+1. `scope_rule` (in-scope/out-of-scope and mandatory identifier rules)
+2. `state_definition` (service/resource/operational states and meanings)
+3. `transition_rule` (state transitions and triggers)
+4. `decision_tree` (diagnostic branch logic)
+5. `failure_pattern` (known failure signatures + probable causes)
+6. `evidence_pattern` (what evidence confirms/rejects a hypothesis)
+7. `tool_contract` (tool purpose, required inputs, expected outputs)
+8. `workflow_step` (pre/post provisioning flow steps)
+9. `reference_map` (microservice/component responsibilities)
 
-- [ ] 19. What should be the minimum metadata schema per knowledge item (tenant, environment, domain, source, timestamp, confidence, lifecycle status)?
-Answer:
-Still open. Metadata likely varies by knowledge base type, and agentic knowledge modeling is not finalized yet.
+- [x] 19. What should be the minimum metadata schema per knowledge item (tenant, environment, domain, source, timestamp, confidence, lifecycle status)?
+User answer summary:
+Metadata may differ by knowledge type.
+Decision (v1):
+Use one minimum common schema for all extracted knowledge:
+`knowledge_id`, `domain`, `knowledge_type`, `title`, `statement`,
+`preconditions`, `expected_outcome`, `source_file`, `source_section`,
+`source_anchor`, `source_kind` (`prompt_table|prompt_text|code|chat|incident`),
+`tenant_scope` (`global|tenant`), `environment_scope`, `version`,
+`confidence`, `status` (`active|candidate|deprecated`), `tags`,
+`created_at`, `updated_at`.
 
-- [ ] 20. What should be the write path for new knowledge (manual curation, automated summarization, agent-generated proposals with approval, or hybrid)?
-Answer:
-Initial candidates are:
-1) reverse-engineered markdown knowledge files from code
-2) direct code ingestion
-Final write-path strategy is still open.
+- [x] 20. What should be the write path for new knowledge (manual curation, automated summarization, agent-generated proposals with approval, or hybrid)?
+User answer summary:
+Could start from reverse-engineered markdown or direct code input.
+Decision (v1):
+Use hybrid write path with explicit precedence:
+1. Baseline authoritative load: Prompt markdown extraction (current domain source of truth)
+2. Enrichment load: Code-derived facts/tool contracts
+3. Candidate load: Chat/incident learnings (not authoritative until approved)
+Publish policy: `candidate -> reviewed -> active`.
 
 - [-] 21. What freshness strategy should apply per knowledge class (real-time, hourly, daily, event-driven)?
 Answer:
 Deferred explicitly for now; focus is first on early knowledge extraction and retrieval quality.
 
-- [ ] 22. How should conversation history be transformed into durable knowledge (raw transcript vs summarized episodes vs extracted facts)?
-Answer:
-Current history is in Postgres via Google ADK sessions. Durable transformation strategy is still open.
-Candidate idea: context quota allocation by context type (for example domain knowledge vs chat history), needs refinement.
+- [x] 22. How should conversation history be transformed into durable knowledge (raw transcript vs summarized episodes vs extracted facts)?
+User answer summary:
+Current history is in Postgres via ADK; context quota idea exists.
+Decision (v1):
+Use 3-layer history model:
+1. Raw session log (Postgres, operational only, not directly injected to long-term memory)
+2. Episodic summary (session-level compressed memory)
+3. Promoted facts/learnings (only after extraction + confidence check + optional approval)
+Promotion rule: only durable facts/learnings move to active long-term knowledge.
 
-- [ ] 23. What is the retrieval policy contract for service/domain agents (top_k, filters, ranking, recency boost, confidence threshold)?
-Answer:
-Direction is that one fixed retrieval policy is likely insufficient; runtime-selectable retrieval strategy is preferred. Exact contract remains open.
+- [x] 23. What is the retrieval policy contract for service/domain agents (top_k, filters, ranking, recency boost, confidence threshold)?
+User answer summary:
+Single policy is not sufficient; runtime selection preferred.
+Decision (v1):
+Use runtime-selectable retrieval profile with mandatory domain filter.
+Contract:
+1. Intent classification -> retrieval profile selection
+2. Profile selects allowed knowledge types and per-type `top_k`
+3. Ranking uses hybrid score (semantic + source authority + recency)
+4. Confidence threshold gates final context inclusion
+5. If confidence is low, route to clarifying/evidence expansion path
 
 - [-] 24. What should be the conflict-resolution strategy when multiple knowledge items disagree (latest-wins, source-priority, confidence-weighted, human-review)?
 Answer:
@@ -71,8 +106,20 @@ Deferred explicitly for now; to be addressed after initial knowledge extraction 
 Answer:
 Deferred explicitly for now; to be addressed after initial knowledge extraction and retrieval-quality baseline.
 
-- [ ] 26. For first implementation, what should be the canonical ingestion source: reverse-engineered markdown knowledge docs, direct code ingestion, or both with precedence rules?
-- [ ] 27. Should context quota be static (fixed percentages) or dynamic (intent/query-driven allocation at runtime)?
+- [x] 26. For first implementation, what should be the canonical ingestion source: reverse-engineered markdown knowledge docs, direct code ingestion, or both with precedence rules?
+Decision (v1):
+Use both with precedence:
+1. Prompt markdown extraction (highest priority)
+2. Code extraction for technical/tool details
+3. Chat/incident learnings as candidate layer
+
+- [x] 27. Should context quota be static (fixed percentages) or dynamic (intent/query-driven allocation at runtime)?
+Decision (v1):
+Use dynamic quota by intent/profile, with safety caps.
+Default starting caps:
+- domain knowledge: 40-60%
+- case history/episodes: 20-30%
+- live tool evidence: 20-40%
 
 ## Deferred Questions (Out of Current Scope)
 

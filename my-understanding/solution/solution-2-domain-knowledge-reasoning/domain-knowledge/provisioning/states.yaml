@@ -1,0 +1,208 @@
+---
+# Domain knowledge: What states exist in the provisioning domain and what they mean.
+# This is NOT about what to do when you see a state. It is about understanding
+# the state so the agent can reason about any problem involving it.
+
+items:
+
+  # --- Service States ---
+
+  - knowledge_id: state_service_unprovisioned
+    domain: provisioning
+    knowledge_type: state_definition
+    entity: service
+    field: serviceState
+    value: UNPROVISIONED
+    statement: >
+      Pre-provisioning is complete but post-provisioning has not succeeded yet.
+      This is the most common state for failed or incomplete provisioning.
+      There is no persisted PROVISIONING state; the system moves directly from
+      UNPROVISIONED to PROVISIONED or PROVISIONING_FAILED.
+    key_facts:
+      - "UNPROVISIONED does NOT mean deactivated (that is INACTIVE)"
+      - "Most failed/incomplete provisioning stays in UNPROVISIONED"
+      - "Initial state for RDK and UNKNOWN management systems"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Core Entities and States > Service Detail States"
+    version: "1.0"
+    status: active
+    tags: [state, service, unprovisioned]
+
+  - knowledge_id: state_service_provisioned
+    domain: provisioning
+    knowledge_type: state_definition
+    entity: service
+    field: serviceState
+    value: PROVISIONED
+    statement: >
+      Service successfully provisioned. All provisioning parameters should have
+      status APPLIED. This is the end-state of a successful provisioning flow.
+    key_facts:
+      - "Happy path end state"
+      - "All parameters should be APPLIED"
+      - "Initial state for LEGACY (HDM/RINO/SNMP) and NONDTROUTER management systems (sync provisioning)"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Core Entities and States > Service Detail States"
+    version: "1.0"
+    status: active
+    tags: [state, service, provisioned]
+
+  - knowledge_id: state_service_provisioning_failed
+    domain: provisioning
+    knowledge_type: state_definition
+    entity: service
+    field: serviceState
+    value: PROVISIONING_FAILED
+    statement: >
+      Post-provisioning failed after all retry attempts were exhausted.
+      Only occurs when service was NOT in PENDING_CHANGE state at time of failure.
+      If service was in PENDING_CHANGE, the state is preserved as PENDING_CHANGE instead.
+    key_facts:
+      - "Only after ALL retries exhausted"
+      - "PENDING_CHANGE state is preserved on failure (exception to normal transition)"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Core Entities and States > Service Detail States"
+    version: "1.0"
+    status: active
+    tags: [state, service, provisioning_failed]
+
+  - knowledge_id: state_service_pending_change
+    domain: provisioning
+    knowledge_type: state_definition
+    entity: service
+    field: serviceState
+    value: PENDING_CHANGE
+    statement: >
+      A service modification is in progress. Critical behavior: if provisioning
+      fails while in PENDING_CHANGE state, the state is PRESERVED as PENDING_CHANGE
+      (not transitioned to PROVISIONING_FAILED). This allows pending changes to
+      be processed first.
+    key_facts:
+      - "Provisioning failure does NOT change this state"
+      - "State is preserved to allow pending changes to complete"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Core Entities and States > Service Detail States"
+    version: "1.0"
+    status: active
+    tags: [state, service, pending_change]
+
+  - knowledge_id: state_service_inactive
+    domain: provisioning
+    knowledge_type: state_definition
+    entity: service
+    field: serviceState
+    value: INACTIVE
+    statement: >
+      Service was explicitly deactivated or deprovisioned.
+      INACTIVE is NOT the result of failed provisioning.
+    key_facts:
+      - "Means intentional deactivation, not failure"
+      - "Failed provisioning stays UNPROVISIONED, NOT INACTIVE"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Core Entities and States > Service Detail States"
+    version: "1.0"
+    status: active
+    tags: [state, service, inactive]
+
+  # --- Resource Operational States ---
+
+  - knowledge_id: state_resource_op_enabled_online
+    domain: provisioning
+    knowledge_type: state_definition
+    entity: resource
+    field: "operationalState + operationalSubState"
+    value: "ENABLED / ONLINE"
+    statement: >
+      Device has an active websocket connection with the RDK backend.
+      An online event has been received. Device is reachable and can
+      receive provisioning commands via Xmidt/WebPA.
+    key_facts:
+      - "Set when online event is received via websocket"
+      - "Device is reachable for provisioning"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Core Entities and States > Resource Operational States"
+    version: "1.0"
+    status: active
+    tags: [state, resource, operational, online]
+
+  - knowledge_id: state_resource_op_unknown_pending_unknown
+    domain: provisioning
+    knowledge_type: state_definition
+    entity: resource
+    field: "operationalState + operationalSubState"
+    value: "UNKNOWN / PENDING_UNKNOWN"
+    statement: >
+      Device is offline or disconnected. There is NO explicit OFFLINE state
+      in the system. Offline is represented as operationalState=UNKNOWN with
+      operationalSubState=PENDING_UNKNOWN (default) or a contextual sub-state.
+    key_facts:
+      - "There is NO explicit OFFLINE sub-state anywhere in the system"
+      - "UNKNOWN is the offline representation"
+      - "Set when offline event received or no connection established"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Core Entities and States > Resource Operational States"
+    version: "1.0"
+    status: active
+    tags: [state, resource, operational, offline, unknown]
+
+  - knowledge_id: state_resource_op_pending_pppoe_restart
+    domain: provisioning
+    knowledge_type: state_definition
+    entity: resource
+    field: "operationalState + operationalSubState"
+    value: "UNKNOWN / PENDING_PPPOE_RESTART"
+    statement: >
+      PPPoE parameters have been applied to the device and the system is
+      awaiting the device to restart its PPPoE connection. The device should
+      send a PPPOE_RESET_EVENT approximately 5 seconds after the 200 OK
+      response from the CPE.
+    key_facts:
+      - "PPPOE_RESET_EVENT expected ~5 seconds after 200 OK"
+      - "Service remains locked while waiting"
+      - "If event never arrives, post-provisioning cannot complete"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Core Entities and States > Resource Operational States"
+    version: "1.0"
+    status: active
+    tags: [state, resource, operational, pppoe, pending]
+
+  # --- Resource States ---
+
+  - knowledge_id: state_resource_pending_active_assigned
+    domain: provisioning
+    knowledge_type: state_definition
+    entity: resource
+    field: "resourceState + resourceSubState"
+    value: "PENDING_ACTIVE / ASSIGNED"
+    statement: >
+      Resource is assigned to a service but not yet provisioned.
+      This is the state after pre-provisioning for RDK devices, waiting
+      for post-provisioning to complete.
+    key_facts:
+      - "Set during pre-provisioning when resource is linked to service"
+      - "Waiting for post-provisioning"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Core Entities and States > Resource States"
+    version: "1.0"
+    status: active
+    tags: [state, resource, pending_active, assigned]
+
+  - knowledge_id: state_resource_active_provisioned
+    domain: provisioning
+    knowledge_type: state_definition
+    entity: resource
+    field: "resourceState + resourceSubState"
+    value: "ACTIVE / PROVISIONED"
+    statement: >
+      Resource is fully provisioned and delivering service. Happy path end state.
+      In harmonized mode (resourceStateHarmonisation feature flag ON),
+      transition is PENDING_ACTIVE -> ACTIVE with SubState PROVISIONED.
+      In legacy mode (flag OFF), transition is PENDING_ACTIVE -> PROVISIONED directly.
+    key_facts:
+      - "End state for successful provisioning"
+      - "Transition path depends on resourceStateHarmonisation feature flag"
+    source_file: ProvisioningManagerInvestigator_Instruction.md
+    source_section: "Core Entities and States > Resource States"
+    version: "1.0"
+    status: active
+    tags: [state, resource, active, provisioned]

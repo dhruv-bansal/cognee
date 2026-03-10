@@ -21,6 +21,7 @@ This folder captures a simple, structured understanding of using `cognee` for ag
 15. [agent-memory-solution-options.md](/Users/fracon/Documents/code/exploration/ai-agent/graph-vector/cognee/my-understanding/agent-memory-solution-options.md)
 16. [15-data-placement-and-retrieval-control.md](/Users/fracon/Documents/code/exploration/ai-agent/graph-vector/cognee/my-understanding/cognee/15-data-placement-and-retrieval-control.md)
 17. [00-domain-service-agent-architecture-note.md](/Users/fracon/Documents/code/exploration/ai-agent/graph-vector/cognee/my-understanding/00-domain-service-agent-architecture-note.md)
+18. [suggested-solution-domain-knowledge/README.md](/Users/fracon/Documents/code/exploration/ai-agent/graph-vector/cognee/my-understanding/suggested-solution-domain-knowledge/README.md)
 
 ## Scope
 

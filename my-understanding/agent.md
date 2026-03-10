@@ -146,6 +146,8 @@ The current platform/agents/evals understanding is already summarized under `cur
 [ solution/solution-1-rule-based-retrieval/ ](/Users/fracon/Documents/code/exploration/ai-agent/graph-vector/cognee/my-understanding/solution/solution-1-rule-based-retrieval/)
 - Solution 2 (domain knowledge for reasoning - current):
 [ solution/solution-2-domain-knowledge-reasoning/ ](/Users/fracon/Documents/code/exploration/ai-agent/graph-vector/cognee/my-understanding/solution/solution-2-domain-knowledge-reasoning/)
+- Suggested practical solution for V1 with Google ADK:
+[ suggested-solution-domain-knowledge/README.md ](/Users/fracon/Documents/code/exploration/ai-agent/graph-vector/cognee/my-understanding/suggested-solution-domain-knowledge/README.md)
 
 
 ## Existing Elements Involved
